@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import pandas_market_calendars as mcal
 
-class StockChecker:
+class stockChecker:
     def is_valid_stock(self, stock_symbol):
         """
         Checks if the given string is a valid stock symbol on Yahoo Finance.
@@ -16,7 +16,7 @@ class StockChecker:
         """
         try:
             stock_info = yf.Ticker(stock_symbol).info
-            if 'symbol' in stock_info:
+            if len(stock_info) > 20:
                 return True
             else:
                 return False
@@ -58,17 +58,17 @@ class StockChecker:
         full_day_data_5m.index = pd.to_datetime(full_day_data_5m.index)
 
         # Filter pre-market data (4:00 AM to 9:30 AM) at 1-minute intervals
-        pre_market_data = full_day_data_5m.between_time("04:01", "09:30")
+        pre_market_data = full_day_data_5m.between_time("06:01", "09:30")
 
         # Filter open market data (9:30 AM to 10:30 AM) at 1-minute intervals
-        open_market_data = full_day_data_1m.between_time("09:30", "12:30")
+        open_market_data = full_day_data_1m.between_time("09:30", "11:30")
 
         return {
             "pre_market_data": pre_market_data,
             "open_market_data": open_market_data
         }
     
-    def get_last_trading_days(self, ticker: str, date, back_window=30):
+    def get_last_trading_days(self, ticker: str, date, back_window=25):
         """
         Fetch and filter stock data for the last 30 trading days (Monday to Friday).
         Args:
