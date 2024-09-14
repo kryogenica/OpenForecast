@@ -24,6 +24,26 @@ class stockChecker:
             print(f"Error checking stock symbol {stock_symbol}: {e}")
             return False
 
+    def stock_has_data(self, stock_symbol):
+        '''Verifies if the stock is in an exchage with very little data'''
+        excluded_exchanges = {
+            'PNK': 'Pink Sheets',
+            'OTC': 'Over-The-Counter',
+            'OTCQB': 'OTC Markets Group - Venture Market',
+            'OTCQX': 'OTC Markets Group - Best Market',
+            'GREY': 'Grey Market',
+            'NCM': 'Non-Clearing Member',  # Optional: Exclude if desired
+        }
+        try:
+            exchange = yf.Ticker(stock_symbol).info['exchange']
+            if exchange in excluded_exchanges:
+                exchange_full_name = excluded_exchanges[exchange]
+                return False, exchange_full_name
+            else:
+                return True, []
+        except Exception as e:
+            print(f"Error checking stock symbol {stock_symbol}: {e}")
+            return False
 
     def is_it_a_trading_day(self, date_to_check):
         '''

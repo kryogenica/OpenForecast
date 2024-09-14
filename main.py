@@ -13,7 +13,7 @@ def get_trading_data(Ticker):
     prices = SC.get_last_trading_days(Ticker.upper(), '2024-09-09')
     return prices
 
-def plot_pre_n_open_market(stock_data_last_days, Ticker_name, best_pre_open_indicators=[3,5,11]):
+def plot_pre_n_open_market(stock_data_last_days, ticker_name, best_pre_open_indicators, prediction=None):
 
     best_pre_open_data = [i+1 for i in best_pre_open_indicators]
     # Calculate and plot rolling mean for each day's open market data
@@ -54,21 +54,24 @@ def plot_pre_n_open_market(stock_data_last_days, Ticker_name, best_pre_open_indi
     data = stock_data_last_days[0]["open_market_data"]["Open"]
     open_data = data.rolling(window=5).mean().shift(-2)
     open_normalizer = data.iloc[0]
-    plt.plot(range(-len(pre_data),0),  ((pre_data-pre_normalizer)/pre_normalizer)*100, color='black', linewidth=3)
-    plt.plot(range(0,len(open_data)),  ((open_data-open_normalizer)/open_normalizer)*100, color='black', linewidth=3)
+    plt.plot(range(-len(pre_data),0),  ((pre_data-pre_normalizer)/pre_normalizer)*100, color='black', linewidth=3, linestyle=':')
+    plt.plot(range(0,len(open_data)),  ((open_data-open_normalizer)/open_normalizer)*100, color='black', linewidth=3, linestyle=':')
 
     plt.axhline(y=0, linewidth=0.5, color='black')
     plt.axvline(x=0, linewidth=0.5, color='black')
 
+    if prediction != None:
+        plt.plot(range(0,len(prediction)), prediction, color='black',  linewidth=3)
+
     # Add labels and title
     plt.xlabel("Minutes before and after Opening")
     plt.ylabel("Close Price % | Open Price %")
-    plt.title(f"Rolling Mean for {Ticker_name.upper()} Market Data")
+    plt.title(f"Rolling Mean for {ticker_name.upper()} Market Data")
     plt.show()
     # Show the plot within the Streamlit app
     st.pyplot(plt)
 
-def plot_horizontal_heatmap(values, circle_indexes=[2,5,9]):
+def plot_horizontal_heatmap(values, circle_indexes):
   """
   Plots a list of values as a vertical heatmap.
   Args:
@@ -109,7 +112,9 @@ st.title("Open Forecat")
 # Initialize session state for the buttons
 if 'active_feature' not in st.session_state:
     st.session_state['active_feature'] = 'feature_1'
-    st.session_state['T_or_F'] = False
+    st.session_state['T_or_F_exists'] = False
+    st.session_state['T_or_F_with_data'] = True
+    st.session_state['exchange_name'] = []
     st.session_state['stock'] = None
     option = 'Pearson Correlation'
 
@@ -143,15 +148,19 @@ with st.sidebar:
     user_input = st.text_input(st.session_state['input_label'], "")
     if user_input:
 
-        st.session_state['T_or_F'] = SC.is_valid_stock(user_input)
+        st.session_state['T_or_F_exists'] = SC.is_valid_stock(user_input)
         st.session_state['stock'] = str(user_input)
-        if st.session_state['T_or_F'] :
-            st.session_state['input_label'] = (f"✅ {st.session_state['stock'].upper()} stock indetified!")
-            stock_data_last_days = get_trading_data(st.session_state['stock'])
-            print("Data has been collected.")
-            st.session_state['stock_data'] = stock_data_last_days  # Store the data in session state
-            st.session_state['lists_of_measures'] = SA.get_pre_market_measures(stock_data_last_days)
-
+        if st.session_state['T_or_F_exists'] :
+            st.session_state['T_or_F_with_data'], st.session_state['exchange_name'] = SC.stock_has_data(user_input)
+            if st.session_state['T_or_F_with_data']:
+                st.session_state['input_label'] = (f"✅ {st.session_state['stock'].upper()} stock indetified!")
+                stock_data_last_days = get_trading_data(st.session_state['stock'])
+                print("Data has been collected.")
+                st.session_state['stock_data'] = stock_data_last_days  # Store the data in session state
+                st.session_state['lists_of_measures'] = SA.get_pre_market_measures(stock_data_last_days)
+            else:
+                st.session_state['input_label'] = (f"❓ Not enough data for {st.session_state['stock'].upper()} in a {st.session_state['exchange_name']} exchange!")
+                st.session_state['T_or_F_exists'] = False
         else:         
             st.session_state['input_label'] = (f"❌ {st.session_state['stock'].upper()} stock not found!")
         # Clear the input box after processing
@@ -167,7 +176,7 @@ with st.sidebar:
 
 
 # Check if stock data exists and call the plot function
-if st.session_state['T_or_F']:
+if st.session_state['T_or_F_exists']:
     stock_data_last_days = st.session_state['stock_data']
     best_pre_market_match = st.session_state['lists_of_measures'][measures_to_num_n_type[option][0]]
     circle_indexes = [i for i, _ in SA.max_min_of_abs(best_pre_market_match, measures_to_num_n_type[option][1])]# Get top 3 best results
@@ -178,7 +187,7 @@ else:
 
 
 # Check if stock data exists and call the plot function
-if st.session_state['T_or_F']:
+if st.session_state['T_or_F_exists']:
     best_pre_market_match = st.session_state['lists_of_measures'][measures_to_num_n_type[option][0]]
     circle_indexes = [i for i, _ in SA.max_min_of_abs(best_pre_market_match, measures_to_num_n_type[option][1])]# Get top 3 best results
     plot_horizontal_heatmap(best_pre_market_match, circle_indexes)  # Plot the data after user input

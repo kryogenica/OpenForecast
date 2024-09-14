@@ -8,8 +8,6 @@ from sklearn.metrics import mutual_info_score
 from sklearn.preprocessing import KBinsDiscretizer
 
 class stockAnalyzer:
-
-
     def fill_missing_minutes(self, data, Type):
         """
         Introduces NaN values for missing datetime in the 'Close' column of a given DataFrame.
@@ -106,3 +104,75 @@ class stockAnalyzer:
         elif Type == 'Min':
             values = min_values
         return values
+
+from fastdtw import fastdtw
+from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import ElasticNet
+from sklearn.linear_model import Ridge
+
+class stockPredictor:
+    #Create object with the best 3 predictors for each type of metric
+    def __init__(self, predictor_1, predictor_2, predictor_3, to_be_predicted):
+        self.a = predictor_1
+        self.b = predictor_2
+        self.c = predictor_3
+        self.x = to_be_predicted
+
+    def data_divider(self,where_to_cut):
+        N = where_to_cut
+        self.X = np.column_stack((self.a[:N], self.b[:N], self.c[:N]))
+        self.Y = np.column_stack((self.a[N:], self.b[N:], self.c[N:]))
+
+    def align_series_with_dtw(self, source, target):
+        '''Perform DTW to get the path of alignment'''
+        _, path = fastdtw(source, target)
+        # Create an aligned version of the source series with the same length as the target
+        aligned_source = np.zeros(len(target))  # Initialize with the same length as target
+        # Use the DTW path to align source to target
+        for i, (source_idx, target_idx) in enumerate(path):
+            # Place the source value at the position corresponding to the target index
+            aligned_source[target_idx] = source[source_idx]
+        # Some target indices may not be assigned, so we interpolate them
+        for i in range(1, len(aligned_source)):
+            if aligned_source[i] == 0:  # Check if any values are missing
+                aligned_source[i] = aligned_source[i - 1]  # Fill missing values by repeating the previous
+        return aligned_source
+
+    def DTW_regresion(self, where_to_cut):
+        N = where_to_cut
+        # Compute DTW distances between x and a, b, c
+        aligned_a = self.align_series_with_dtw(self.a[:N], self.x[:N])
+        aligned_b = self.align_series_with_dtw(self.b[:N], self.x[:N])
+        aligned_c = self.align_series_with_dtw(self.c[:N], self.x[:N])
+        # Combine the aligned series into a feature matrix
+        X_aligned = np.column_stack((aligned_a, aligned_b, aligned_c))
+        # Train a linear regression model to predict x from aligned series
+        model = LinearRegression().fit(X_aligned, self.x[:N])
+
+        # Stack the future values of a, b, and c (no alignment with future x is needed)
+        X_future = self.Y
+        X_past = self.X
+
+        # Predict the future values of x
+        x_past_pred = model.predict(X_past)
+        x_future_pred = model.predict(X_future)
+        prediction = np.append(x_past_pred, x_future_pred)
+        return prediction
+
+    def ridge_model(self, where_to_cut):
+        '''Fit a Ridge regression model to handle multicollinearity'''
+        self.data_divider(where_to_cut)
+        ridge_model = Ridge(alpha=1.0).fit(self.X, self.x[:where_to_cut])  # Alpha is the regularization strength
+        coef_LC = ridge_model.coef_
+        prediction = (coef_LC[0]*self.a + coef_LC[1]*self.b + coef_LC[2]*self.c)
+        return prediction
+    
+    def elastic_net(self, where_to_cut):
+        '''Fit a Elastic Net model'''
+        self.data_divider(where_to_cut)
+        model = ElasticNet(alpha=0.25, l1_ratio=0.5)  # Customize alpha and l1_ratio as needed
+        model.fit(self.X, self.x[0:where_to_cut])  # Fit the model
+        coef_EN = model.coef_  # Retrieve the coefficients (alpha, beta, gamma)
+        prediction = (coef_EN[0]*self.a + coef_EN[1]*self.b + coef_EN[2]*self.c)
+        return prediction
+    
