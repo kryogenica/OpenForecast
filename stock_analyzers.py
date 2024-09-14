@@ -7,6 +7,7 @@ from sklearn.preprocessing import KBinsDiscretizer
 from sklearn.linear_model import LinearRegression
 from sklearn.linear_model import ElasticNet
 from sklearn.linear_model import Ridge
+from sklearn.preprocessing import StandardScaler
 
 class stockAnalyzer:
     def fill_missing_minutes(self, data, Type):
@@ -164,18 +165,43 @@ class stockPredictor:
 
     def ridge_model(self):
         '''Fit a Ridge regression model to handle multicollinearity'''
-        ridge_model = Ridge(alpha=0.5).fit(self.X, self.x[:self.where_to_cut])  # Alpha is the regularization strength
-        coef_LC = ridge_model.coef_
-        prediction = (coef_LC[0]*self.a + coef_LC[1]*self.b + coef_LC[2]*self.c)
+        # Apply StandardScaler to X and x
+        scaler_X = StandardScaler().fit(self.X)
+        X_scaled = scaler_X.transform(self.X)
+        scaler_x = StandardScaler().fit(self.x[:self.where_to_cut].reshape(-1, 1))
+        x_scaled = scaler_x.transform(self.x[:self.where_to_cut].reshape(-1, 1)).flatten()
+        
+        # Fit the Ridge regression model
+        ridge_model = Ridge(alpha=1).fit(X_scaled, x_scaled)  # Alpha is the regularization strength
+        
+        # Use the trained model to predict the future values of x
+        X_all_scaled = scaler_X.transform(np.column_stack((self.a, self.b, self.c)))
+        prediction_scaled = ridge_model.predict(X_all_scaled)
+        
+        # Inverse transform the prediction to get it back to the original scale
+        prediction = scaler_x.inverse_transform(prediction_scaled.reshape(-1, 1)).flatten()
+        
         return prediction
     
     def elastic_net(self):
-        '''Fit a Elastic Net model'''
-        model = ElasticNet(alpha=0.1, l1_ratio=0.5)  # Customize alpha and l1_ratio as needed
-        model.fit(self.X, self.x[:self.where_to_cut])  # Fit the model
-        coef_EN = model.coef_  # Retrieve the coefficients (alpha, beta, gamma)
-        print(coef_EN)
-        prediction = (coef_EN[0]*self.a + coef_EN[1]*self.b + coef_EN[2]*self.c)
+        '''Fit an Elastic Net model with standardized data'''
+        # Apply StandardScaler to X and x
+        scaler_X = StandardScaler().fit(self.X)
+        X_scaled = scaler_X.transform(self.X)
+        scaler_x = StandardScaler().fit(self.x[:self.where_to_cut].reshape(-1, 1))
+        x_scaled = scaler_x.transform(self.x[:self.where_to_cut].reshape(-1, 1)).flatten()
+        
+        # Fit the Elastic Net model
+        model = ElasticNet(alpha=0.35, l1_ratio=0.35)  # Customize alpha and l1_ratio as needed
+        model.fit(X_scaled, x_scaled)  # Fit the model
+        
+        # Use the trained model to predict the future values of x
+        X_all_scaled = scaler_X.transform(np.column_stack((self.a, self.b, self.c)))
+        prediction_scaled = model.predict(X_all_scaled)
+        
+        # Inverse transform the prediction to get it back to the original scale
+        prediction = scaler_x.inverse_transform(prediction_scaled.reshape(-1, 1)).flatten()
+        
         return prediction
     
 class stockNormalizer:

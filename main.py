@@ -58,8 +58,8 @@ def plot_pre_n_open_market(stock_data_last_days, ticker_name, best_open_data_ind
         plt.plot(range(0, len(prediction)), prediction, color='black', linewidth=3)
 
     # Add shading
-    plt.axvspan(0, vision, color='green', alpha=0.3)
-    plt.axvspan(vision, len(normalized_open_data), color='gray', alpha=0.3)
+    plt.axvspan(0, vision, color='green', alpha=0.2)
+    plt.axvspan(vision, len(normalized_open_data), color='gray', alpha=0.2)
 
     # Add labels and title
     plt.xlabel("Minutes before and after Opening")
@@ -183,7 +183,7 @@ with st.sidebar:
     prediction_vision = st.sidebar.slider(
         "Window used for prediction:",
         min_value=5, 
-        max_value=30, 
+        max_value=60, 
         value=5,  # Default value
         step=1
     )
