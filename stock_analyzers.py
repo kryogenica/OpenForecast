@@ -1,11 +1,12 @@
 import numpy as np
 from fastdtw import fastdtw
 import pandas as pd
-from scipy.spatial.distance import euclidean
-from sklearn.preprocessing import MinMaxScaler
 from scipy.stats import kendalltau
 from sklearn.metrics import mutual_info_score
 from sklearn.preprocessing import KBinsDiscretizer
+from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import ElasticNet
+from sklearn.linear_model import Ridge
 
 class stockAnalyzer:
     def fill_missing_minutes(self, data, Type):
@@ -20,11 +21,17 @@ class stockAnalyzer:
         # Create a DatetimeIndex with 1-minute intervals for the pre-market time range
         date_str = data.index[0].strftime('%Y-%m-%d')
         if Type == 'PRE':
-            full_index = pd.date_range(start=(f"{date_str} 06:01:00-06:00"), end=(f"{date_str} 09:30:00-06:00"), freq='1min')
+            full_index = pd.date_range(start=(f"{date_str} 06:01:00-04:00"), end=(f"{date_str} 09:29:00-04:00"), freq='1min')
         elif Type == 'OPEN':
-            full_index = pd.date_range(start=(f"{date_str} 09:30:00-06:00"), end=(f"{date_str} 11:30:00-06:00"), freq='1min')
+            full_index = pd.date_range(start=(f"{date_str} 09:30:00-04:00"), end=(f"{date_str} 11:30:00-04:00"), freq='1min')
         # Reindex the DataFrame with the full index
         data = data.reindex(full_index)
+        
+        # Special case: fill the first missing values by bfill()
+        if data.isna().iloc[0]:
+            data = data.bfill()
+        
+        # Fill remaining missing values by ffill()
         data = data.ffill()
 
         return data
@@ -105,20 +112,16 @@ class stockAnalyzer:
             values = min_values
         return values
 
-from fastdtw import fastdtw
-from sklearn.linear_model import LinearRegression
-from sklearn.linear_model import ElasticNet
-from sklearn.linear_model import Ridge
-
 class stockPredictor:
     #Create object with the best 3 predictors for each type of metric
-    def __init__(self, predictor_1, predictor_2, predictor_3, to_be_predicted):
-        self.a = predictor_1
-        self.b = predictor_2
-        self.c = predictor_3
-        self.x = to_be_predicted
+    def __init__(self, predictors, to_be_predicted):
+        self.a = np.asanyarray(predictors[0])
+        self.b = np.asanyarray(predictors[1])
+        self.c = np.asanyarray(predictors[2])
+        self.x = np.asanyarray(to_be_predicted)
 
     def data_divider(self,where_to_cut):
+        self.where_to_cut = where_to_cut
         N = where_to_cut
         self.X = np.column_stack((self.a[:N], self.b[:N], self.c[:N]))
         self.Y = np.column_stack((self.a[N:], self.b[N:], self.c[N:]))
@@ -138,12 +141,12 @@ class stockPredictor:
                 aligned_source[i] = aligned_source[i - 1]  # Fill missing values by repeating the previous
         return aligned_source
 
-    def DTW_regresion(self, where_to_cut):
-        N = where_to_cut
+    def DTW_regresion(self):
+        N = self.where_to_cut
         # Compute DTW distances between x and a, b, c
-        aligned_a = self.align_series_with_dtw(self.a[:N], self.x[:N])
-        aligned_b = self.align_series_with_dtw(self.b[:N], self.x[:N])
-        aligned_c = self.align_series_with_dtw(self.c[:N], self.x[:N])
+        aligned_a = self.align_series_with_dtw(self.X[:, 0], self.x[:N])
+        aligned_b = self.align_series_with_dtw(self.X[:, 1], self.x[:N])
+        aligned_c = self.align_series_with_dtw(self.X[:, 2], self.x[:N])
         # Combine the aligned series into a feature matrix
         X_aligned = np.column_stack((aligned_a, aligned_b, aligned_c))
         # Train a linear regression model to predict x from aligned series
@@ -159,20 +162,40 @@ class stockPredictor:
         prediction = np.append(x_past_pred, x_future_pred)
         return prediction
 
-    def ridge_model(self, where_to_cut):
+    def ridge_model(self):
         '''Fit a Ridge regression model to handle multicollinearity'''
-        self.data_divider(where_to_cut)
-        ridge_model = Ridge(alpha=1.0).fit(self.X, self.x[:where_to_cut])  # Alpha is the regularization strength
+        ridge_model = Ridge(alpha=0.5).fit(self.X, self.x[:self.where_to_cut])  # Alpha is the regularization strength
         coef_LC = ridge_model.coef_
         prediction = (coef_LC[0]*self.a + coef_LC[1]*self.b + coef_LC[2]*self.c)
         return prediction
     
-    def elastic_net(self, where_to_cut):
+    def elastic_net(self):
         '''Fit a Elastic Net model'''
-        self.data_divider(where_to_cut)
-        model = ElasticNet(alpha=0.25, l1_ratio=0.5)  # Customize alpha and l1_ratio as needed
-        model.fit(self.X, self.x[0:where_to_cut])  # Fit the model
+        model = ElasticNet(alpha=0.1, l1_ratio=0.5)  # Customize alpha and l1_ratio as needed
+        model.fit(self.X, self.x[:self.where_to_cut])  # Fit the model
         coef_EN = model.coef_  # Retrieve the coefficients (alpha, beta, gamma)
+        print(coef_EN)
         prediction = (coef_EN[0]*self.a + coef_EN[1]*self.b + coef_EN[2]*self.c)
         return prediction
+    
+class stockNormalizer:
+    def normalize_market_data(self, day_data, ventana):
+        # Normalize pre-market data
+        SA = stockAnalyzer()
+        pre_data_raw = SA.fill_missing_minutes(day_data["pre_market_data"]["Close"], 'PRE')
+        pre_data = day_data["pre_market_data"]["Close"].rolling(window=ventana).mean()
+        pre_normalizer = pre_data_raw.iloc[-1]
+        pre_data = pre_data.dropna()
+        normalized_pre_data = ((pre_data - pre_normalizer) / pre_normalizer) * 100
+
+        # Normalize open market data
+        open_data_raw = SA.fill_missing_minutes(day_data["open_market_data"]["Open"], 'OPEN')
+        open_data = open_data_raw.rolling(window=ventana).mean().shift(-(ventana))
+        open_normalizer = open_data_raw.iloc[0]
+        open_data = open_data.dropna()
+        normalized_open_data = ((open_data - open_normalizer) / open_normalizer) * 100
+
+
+        return normalized_pre_data, normalized_open_data
+    
     

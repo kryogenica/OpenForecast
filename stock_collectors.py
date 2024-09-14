@@ -71,14 +71,14 @@ class stockChecker:
 
         # Fetch full intraday data for the day with 1-minute resolution
         full_day_data_1m = stock.history(start=day, end=(datetime.strptime(day, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d"), interval="1m")
-        full_day_data_5m = stock.history(start=day, end=(datetime.strptime(day, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d"), interval="1m", prepost=True)
+        full_day_data_1m_pre = stock.history(start=day, end=(datetime.strptime(day, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d"), interval="1m", prepost=True)
 
         # Convert the index to a datetime index for filtering
         full_day_data_1m.index = pd.to_datetime(full_day_data_1m.index)
-        full_day_data_5m.index = pd.to_datetime(full_day_data_5m.index)
+        full_day_data_1m_pre.index = pd.to_datetime(full_day_data_1m_pre.index)
 
-        # Filter pre-market data (4:00 AM to 9:30 AM) at 1-minute intervals
-        pre_market_data = full_day_data_5m.between_time("06:01", "09:30")
+        # Filter pre-market data (6:00 AM to 9:30 AM) at 1-minute intervals
+        pre_market_data = full_day_data_1m_pre.between_time("06:01", "09:29")
 
         # Filter open market data (9:30 AM to 10:30 AM) at 1-minute intervals
         open_market_data = full_day_data_1m.between_time("09:30", "11:30")
