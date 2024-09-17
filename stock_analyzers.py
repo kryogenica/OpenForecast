@@ -17,7 +17,7 @@ class stockAnalyzer:
             data: The DataFrame containing stock data.
             date: The date in 'YYYY-MM-DD' format.
         Returns:
-            A DataFrame with NaN values filled for missing datetime.
+            A DataFrame with missing values filled with the nearest data.
         """
         # Create a DatetimeIndex with 1-minute intervals for the pre-market time range
         date_str = data.index[0].strftime('%Y-%m-%d')
@@ -37,11 +37,29 @@ class stockAnalyzer:
 
         return data
 
+    def fill_missing_volume(self, data, Type):
+        """
+        Introduces NaN values for missing datetime in the 'Volumen' column of a given DataFrame.
+        Args:
+            data: The DataFrame containing stock data.
+            date: The date in 'YYYY-MM-DD' format.
+        Returns:
+            A DataFrame with NaN values filled for missing datetime.
+        """
+        # Create a DatetimeIndex with 1-minute intervals for the pre-market time range
+        date_str = data.index[0].strftime('%Y-%m-%d')
+        if Type == 'PRE':
+            full_index = pd.date_range(start=(f"{date_str} 06:01:00-04:00"), end=(f"{date_str} 09:29:00-04:00"), freq='1min')
+        elif Type == 'OPEN':
+            full_index = pd.date_range(start=(f"{date_str} 09:30:00-04:00"), end=(f"{date_str} 11:30:00-04:00"), freq='1min')
+        # Reindex the DataFrame with the full index
+        data = data.reindex(full_index)
+        return data
 
-    def get_pre_market_measures(self, data):
+    def get_pre_market_measures(self, data, smoothing_window):
         # Extract the first day's closing prices
         first_day_close = np.asanyarray(self.fill_missing_minutes(data[0]["pre_market_data"]["Close"], 'PRE'))
-        first_day_close = pd.Series(first_day_close).rolling(window=5).mean()#
+        first_day_close = pd.Series(first_day_close).rolling(window=smoothing_window).mean()#
         first_day_close = first_day_close[~np.isnan(first_day_close)]
         normalizer = first_day_close.iloc[-1]
         first_day_close_norm = ((first_day_close-normalizer)/normalizer)*100
@@ -56,7 +74,7 @@ class stockAnalyzer:
         # Iterate over the remaining days
         for day_data in data[1:]:
             close_prices = np.asanyarray(self.fill_missing_minutes(day_data["pre_market_data"]["Close"], 'PRE'))
-            close_prices = pd.Series(close_prices).rolling(window=5).mean()#
+            close_prices = pd.Series(close_prices).rolling(window=smoothing_window).mean()#
             close_prices = close_prices[~np.isnan(close_prices)]
             normalizer = close_prices.iloc[-1]
             close_prices_norm = ((close_prices-normalizer)/normalizer)*100
@@ -125,7 +143,6 @@ class stockPredictor:
         self.where_to_cut = where_to_cut
         N = where_to_cut
         self.X = np.column_stack((self.a[:N], self.b[:N], self.c[:N]))
-        self.Y = np.column_stack((self.a[N:], self.b[N:], self.c[N:]))
 
     def align_series_with_dtw(self, source, target):
         '''Perform DTW to get the path of alignment'''
@@ -150,17 +167,26 @@ class stockPredictor:
         aligned_c = self.align_series_with_dtw(self.X[:, 2], self.x[:N])
         # Combine the aligned series into a feature matrix
         X_aligned = np.column_stack((aligned_a, aligned_b, aligned_c))
+        
+        # Apply StandardScaler to X_aligned and x
+        scaler_X_aligned = StandardScaler().fit(X_aligned)
+        X_aligned_scaled = scaler_X_aligned.transform(X_aligned)
+        scaler_x = StandardScaler().fit(self.x[:N].reshape(-1, 1))
+        x_scaled = scaler_x.transform(self.x[:N].reshape(-1, 1)).flatten()
+        
         # Train a linear regression model to predict x from aligned series
-        model = LinearRegression().fit(X_aligned, self.x[:N])
-
-        # Stack the future values of a, b, and c (no alignment with future x is needed)
-        X_future = self.Y
-        X_past = self.X
-
+        model = LinearRegression().fit(X_aligned_scaled, x_scaled)
+        
+        # Use the trained model to predict the future values of x
+        scaler_X = StandardScaler().fit(np.column_stack((self.a, self.b, self.c)))
+        X_all_scaled = scaler_X.transform(np.column_stack((self.a, self.b, self.c)))
+        
         # Predict the future values of x
-        x_past_pred = model.predict(X_past)
-        x_future_pred = model.predict(X_future)
-        prediction = np.append(x_past_pred, x_future_pred)
+        x_future_pred_scaled = model.predict(X_all_scaled)
+        
+        # Inverse transform the prediction to get it back to the original scale
+        prediction = scaler_x.inverse_transform(x_future_pred_scaled.reshape(-1, 1)).flatten()
+        
         return prediction
 
     def ridge_model(self):
@@ -220,8 +246,6 @@ class stockNormalizer:
         open_normalizer = open_data_raw.iloc[0]
         open_data = open_data.dropna()
         normalized_open_data = ((open_data - open_normalizer) / open_normalizer) * 100
-
-
         return normalized_pre_data, normalized_open_data
     
     

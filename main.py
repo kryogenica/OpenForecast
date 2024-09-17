@@ -1,144 +1,138 @@
 import streamlit as st
+from stock_plotter import StockPlotter
 from stock_collectors import stockChecker
 from stock_analyzers import stockAnalyzer, stockPredictor, stockNormalizer
-import matplotlib.pyplot as plt
-import numpy as np
+from datetime import datetime, timedelta
+import pytz
+import time
+import streamlit.components.v1 as components
 
+
+st.set_page_config(
+    page_title="My App",
+    layout="wide",
+    menu_items={
+        'Get Help': 'https://www.example.com',
+        'Report a bug': "https://www.example.com",
+        'About': "# This is a header. This is an *extremely* cool app!"
+    }
+)
+# Instantiate the StockPlotter and other classes
 SC = stockChecker()
 SA = stockAnalyzer()
 SN = stockNormalizer()
+stock_plotter = StockPlotter(SC, SA, SN)
 # ============
-#    Functions
+#    Current and most current trading day.
 # ============
-def get_trading_data(Ticker):
-    prices = SC.get_last_trading_days(Ticker.upper(), '2024-09-09')
-    return prices
+latest_day = datetime.now().strftime('%Y-%m-%d')
+while not SC.is_it_a_trading_day(latest_day):
+    latest_day = (datetime.strptime(latest_day, '%Y-%m-%d') - timedelta(days=1)).strftime('%Y-%m-%d')
 
-def plot_pre_n_open_market(stock_data_last_days, ticker_name, best_open_data_indexes, vision, prediction=None):
-    window = 10
-    all_values = []
+# Get the current time in NYC
+nyc_tz = pytz.timezone('America/New_York')
+current_time_nyc = datetime.now(nyc_tz).time()
 
-    # Calculate and plot rolling mean for each day's open market data
-    for i, day_data in enumerate(stock_data_last_days):
-        if i not in best_open_data_indexes and i > 0:
-            delta = 0.5 * ((i + 1) / len(stock_data_last_days))
-            normalized_pre_data, normalized_open_data = SN.normalize_market_data(day_data, window)
-            all_values.extend(normalized_pre_data)
-            all_values.extend(normalized_open_data)
-            plt.plot(range(-len(normalized_pre_data), 0), normalized_pre_data, color=(0.45 + delta, 0.5 + delta, delta * 1.8), linewidth=0.3)
-            plt.plot(range(0, len(normalized_open_data)), normalized_open_data, color=(0.45 + delta, 0.5 + delta, delta * 1.8), linewidth=0.3)
+# Define the market open and close times
+market_open_time = datetime.strptime("09:30", "%H:%M").time()
+market_close_time = datetime.strptime("16:00", "%H:%M").time()
 
-    k = 0
-    colors = ['red', 'blue', 'violet']
-    # Plot selected pre and open market data with most similar pre-open market data to latest day
-    for i, day_data in enumerate(stock_data_last_days):
-        if i in best_open_data_indexes:
-            normalized_pre_data, normalized_open_data = SN.normalize_market_data(day_data, window)
-            all_values.extend(normalized_pre_data)
-            all_values.extend(normalized_open_data)
-            plt.plot(range(-len(normalized_pre_data), 0), normalized_pre_data, color=colors[k], linewidth=2)
-            plt.plot(range(0, len(normalized_open_data)), normalized_open_data, color=colors[k], linewidth=2)
-            k += 1
+active_trading = False
+if latest_day == datetime.now().strftime('%Y-%m-%d'):
+    if market_open_time <= current_time_nyc <= market_close_time:
+        active_trading = True
+        today = datetime.now().strftime('%Y-%m-%d')
+        latest_day = (datetime.strptime(latest_day, '%Y-%m-%d') - timedelta(days=1)).strftime('%Y-%m-%d')
 
-    # Plot selected pre and open market data of latest day
-    normalized_pre_data, normalized_open_data = SN.normalize_market_data(stock_data_last_days[0], window)
-    all_values.extend(normalized_pre_data)
-    all_values.extend(normalized_open_data)
-    plt.plot(range(-len(normalized_pre_data), 0), normalized_pre_data, color='black', linewidth=2, linestyle=':')
-    plt.plot(range(0, len(normalized_open_data)), normalized_open_data, color='black', linewidth=2, linestyle=':')
-
-    plt.axhline(y=0, linewidth=0.5, color='black')
-    plt.axvline(x=0, linewidth=0.5, color='black')
-
-    # Set y-axis limits
-    plt.ylim(min(all_values), max(all_values))
-    plt.xlim(-len(normalized_pre_data), len(normalized_open_data))
-
-    if prediction is not None and prediction.any():
-        plt.plot(range(0, len(prediction)), prediction, color='black', linewidth=3)
-
-    # Add shading
-    plt.axvspan(0, vision, color='green', alpha=0.2)
-    plt.axvspan(vision, len(normalized_open_data), color='gray', alpha=0.2)
-
-    # Add labels and title
-    plt.xlabel("Minutes before and after Opening")
-    plt.ylabel("Close Price % | Open Price %")
-    plt.title(f"Rolling Mean for {ticker_name.upper()} Market Data")
-    plt.show()
-    # Show the plot within the Streamlit app
-    st.pyplot(plt)
-
-def plot_horizontal_heatmap(values, circle_indexes):
-  """
-  Plots a list of values as a vertical heatmap.
-  Args:
-    values: A list of values to plot.
-  """
-  # Create the plot
-  fig, ax = plt.subplots(figsize=(6,1), dpi=100)
-
-  # Create the heatmap
-  im = ax.imshow([values], cmap='viridis', aspect='auto')
-
-  # Add value annotations
-  for i in range(len(values)):
-    ax.text(i, 0, f"{values[i]:.2f}", ha="center", va="center", color="brown", fontsize=60, rotation=70)
-
-  # Add circles to specified indexes
-  colors = ['blue','red','violet']
-  for j, i in enumerate(circle_indexes):
-    ax.plot(i, -0.4, marker='o', markersize=50, color=colors[j])
-    ax.plot(i, 0.4, marker='o', markersize=50, color=colors[j])
-
-  # Remove colorbar
-  ax.get_yaxis().set_visible(False)
-  ax.get_xaxis().set_visible(False)
-  ax.set_frame_on(False)
-
-  # Remove the white edges by adjusting the layout
-  plt.subplots_adjust(left=0, right=5, top=5, bottom=0)
-
-  # Display the plot in Streamlit without white edges
-  st.pyplot(fig)
-# ============
-#    Streamlit
-# ============
-# Title for the app
-st.title("Open Forecat")
+# ========================
+#    Streamlit Initialization
+# ========================
 
 # Initialize session state for the buttons
 if 'active_feature' not in st.session_state:
-    st.session_state['active_feature'] = 'feature_1'
+    
+    st.session_state['active_feature'] = 'Most Recent'
     st.session_state['T_or_F_exists'] = False
     st.session_state['T_or_F_with_data'] = True
     st.session_state['exchange_name'] = []
     st.session_state['stock'] = None
+    st.session_state['stock_data'] = None
+    st.session_state['lists_of_measures'] = None
+    st.session_state['predictor_option'] = None
     st.session_state['predictor_option'] = 'DTW Regresion'
     metric_option = 'Pearson Correlation'
+    st.session_state['smoothing_window'] = 5
 
+# ========================
+#    Streamlit Sidebar
+# ========================
 
 # Create a sidebar and add mutually exclusive buttons
 with st.sidebar:
-    st.write("## Controls")
-
     # Create two columns in the sidebar for the buttons
     col1, col2 = st.columns(2)
 
-    # Logic to display Feature 1 or Feature 2, mutually exclusive
+    # Logic to display Feature: "Most Recent" or Feature 2: "Currently Trading" mutually exclusive
     with col1:
-        if st.button("Feature 1"):
-            st.session_state['active_feature'] = 'feature_1'
+        if st.button("Most Recent"):
+            st.session_state['active_feature'] = 'Most Recent'
+            
 
     with col2:
-        if st.button("Feature 2"):
-            st.session_state['active_feature'] = 'feature_2'
-    
-    if st.session_state['active_feature'] == 'feature_1':
-        st.write("Feature 1 is now enabled!")
-    else:
-        st.write("Feature 2 is now enabled!")
-    
+        if active_trading:
+            if st.button("Open Trading"):
+                st.session_state['active_feature'] = 'Currently Trading'
+        else:
+            st.markdown(
+            """
+            <style>
+            .tooltip {
+                position: relative;
+                display: inline-block;
+                cursor: not-allowed;
+            }
+
+            .tooltip .tooltiptext {
+                visibility: hidden;
+                width: 120px;
+                background-color: black;
+                color: #fff;
+                text-align: center;
+                border-radius: 16px;
+                padding: 5px;
+                position: absolute;
+                z-index: 1;
+                top: 110%; /* Position the tooltip below the button */
+                left: 50%;
+                margin-left: -60px;
+                opacity: 0;
+                transition: opacity 0.3s;
+            }
+
+            .tooltip:hover .tooltiptext {
+                visibility: visible;
+                opacity: 1;
+            }
+
+            .tooltip button {
+                border-radius: 100px; /* Make the button more round */
+            }
+            </style>
+            <div class="tooltip">
+                <button disabled style="cursor: not-allowed;">Open Trading</button>
+                <span class="tooltiptext">NYSE & Nasdaq are closed</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+            )
+
+    if st.session_state['active_feature'] == 'Most Recent':
+        st.markdown("<p style='font-size:13px;'>You are now viewing the two-hour period immediately after the market opened on the last trading day.</p>", unsafe_allow_html=True)
+    elif st.session_state['active_feature'] == 'Currently Trading':
+        # Custom CSS for neon glow effect
+        stock_plotter.display_neon_text(text="Market is Open", font_size=20, color="blue")
+        st.markdown("<p style='font-size:13px;'>You are now viewing the current period immediately after the market opened on todays trading day.</p>", unsafe_allow_html=True)
+            
     # Initialize session state for the label if it's not set
     if 'input_label' not in st.session_state:
         st.session_state['input_label'] = "Type Stock Indicator here:"
@@ -153,16 +147,18 @@ with st.sidebar:
             st.session_state['T_or_F_with_data'], st.session_state['exchange_name'] = SC.stock_has_data(user_input)
             if st.session_state['T_or_F_with_data']:
                 st.session_state['input_label'] = (f"✅ {st.session_state['stock'].upper()} stock indetified!")
-                stock_data_last_days = get_trading_data(st.session_state['stock'])
+                stock_data_last_days = SC.get_last_trading_days(st.session_state['stock'].upper(),latest_day)
                 print("Data has been collected.")
                 st.session_state['stock_data'] = stock_data_last_days  # Store the data in session state
-                st.session_state['lists_of_measures'] = SA.get_pre_market_measures(stock_data_last_days)
+                st.session_state['lists_of_measures'] = SA.get_pre_market_measures(stock_data_last_days, st.session_state['smoothing_window'])
             else:
                 st.session_state['input_label'] = (f"❓ Not enough data for {st.session_state['stock'].upper()} in a {st.session_state['exchange_name']} exchange!")
                 st.session_state['T_or_F_exists'] = False
         else:         
             st.session_state['input_label'] = (f"❌ {st.session_state['stock'].upper()} stock not found!")
-        # Clear the input box after processing
+        
+        # Update the label in the sidebar and re-run the app
+        user_input = ""
         st.rerun()
 
     # Create a radio button selection in the sidebar
@@ -178,50 +174,110 @@ with st.sidebar:
         ('DTW Regresion', 'Ridge regression', 'Elastic Net')
     )
 
-
-    # Add a numeric scroller (slider) for controlling a parameter
+    # Add a numeric scroller (slider) for controlling a window used for prediction
     prediction_vision = st.sidebar.slider(
         "Window used for prediction:",
-        min_value=5, 
+        min_value=1, 
         max_value=60, 
         value=5,  # Default value
         step=1
     )
 
+    # Add a numeric scroller (slider) for controlling a parameter
+    new_smoothing_window = st.sidebar.slider(
+        "Rolling mean window:",
+        min_value=1, 
+        max_value=30, 
+        value=5,  # Default value
+        step=1
+    )
 
-# Check if stock data exists and call the plot function
-if st.session_state['T_or_F_exists']:
-    stock_data_last_days = st.session_state['stock_data']
-    best_pre_market_match = st.session_state['lists_of_measures'][measures_to_num_n_type[metric_option][0]]
-    circle_indexes = [i for i, _ in SA.max_min_of_abs(best_pre_market_match, measures_to_num_n_type[metric_option][1])]# Get top 3 best results
-    best_open_data_indexes = [i + 1 for i in circle_indexes]
+    # Check if the smoothing window has changed
+    if new_smoothing_window != st.session_state['smoothing_window']:
+        st.session_state['smoothing_window'] = new_smoothing_window
+        
 
-    exogenous_series = [SN.normalize_market_data(stock_data_last_days[i], 10)[1] for i in best_open_data_indexes]
-    endogenous_series = SN.normalize_market_data(stock_data_last_days[0], 10)[1]
-
-    prediction_machine = stockPredictor(exogenous_series, endogenous_series)
-    prediction_machine.data_divider(prediction_vision)
-    if st.session_state['predictor_option'] == 'DTW Regresion':
-        prediction = prediction_machine.DTW_regresion()
-    elif st.session_state['predictor_option'] == 'Ridge regression':
-        prediction = prediction_machine.ridge_model()
-    elif st.session_state['predictor_option'] == 'Elastic Net':
-        prediction = prediction_machine.elastic_net()
-        #print(prediction)
-
-    plot_pre_n_open_market(stock_data_last_days, str(st.session_state['stock']), best_open_data_indexes, prediction_vision, prediction)  # Plot the data after user input
-else:
-    # Display an animated GIF
-    st.image("https://media.giphy.com/media/6oeRBKg7mwEZnSnYkn/giphy.gif")
+    with st.container():
+        # Display the current time in NYC in hours, minutes, and seconds
+        time_placeholder = st.empty()
+        current_time_nyc = datetime.now(nyc_tz).strftime("%H:%M:%S")
+        time_placeholder.write(f"Last refreshed at {current_time_nyc} NYC time")
 
 
-# Check if stock data exists and call the plot function
-if st.session_state['T_or_F_exists']:
-    best_pre_market_match = st.session_state['lists_of_measures'][measures_to_num_n_type[metric_option][0]]
-    circle_indexes = [i for i, _ in SA.max_min_of_abs(best_pre_market_match, measures_to_num_n_type[metric_option][1])]# Get top 3 best results
-    plot_horizontal_heatmap(best_pre_market_match, circle_indexes)  # Plot the data after user input
-else:
-    # Display an animated GIF
-    st.image("https://media.giphy.com/media/6oeRBKg7mwEZnSnYkn/giphy.gif", caption="Waiting for user input...")
+# ========================
+#    Streamlit Block-container
+# ========================
 
+# JavaScript code to maintain the scroll position
+js_code = """
+    <script>
+    // Check if scroll position is already set in sessionStorage, if not, set it to 0
+    if (!sessionStorage.getItem('scrollpos')) {
+        sessionStorage.setItem('scrollpos', 0);
+    }
 
+    window.addEventListener('DOMContentLoaded', (event) => {
+        // Get the current scroll position
+        let scrollPos = sessionStorage.getItem('scrollpos');
+        if (scrollPos) window.scrollTo(0, scrollPos);
+    });
+
+    window.onscroll = function(e) {
+        // Store the current scroll position in sessionStorage
+        sessionStorage.setItem('scrollpos', window.scrollY);
+    };
+    </script>
+"""
+
+# Title for the app
+st.title("Open Forecast")
+
+# Create a container for the main content
+with st.container():
+    # Check if stock data exists and call the plot function
+    if st.session_state['T_or_F_exists']:
+        
+        stock_data_last_days = st.session_state['stock_data']
+        st.session_state['lists_of_measures'] = SA.get_pre_market_measures(stock_data_last_days, st.session_state['smoothing_window'])
+        best_pre_market_match = st.session_state['lists_of_measures'][measures_to_num_n_type[metric_option][0]]
+        circle_indexes = [i for i, _ in SA.max_min_of_abs(best_pre_market_match, measures_to_num_n_type[metric_option][1])]  # Get top 3 best results
+        best_open_data_indexes = [i + 1 for i in circle_indexes]
+
+        # Get the dates from the stock data using the best open data indexes
+        best_open_data_dates = [stock_data_last_days[i]['date'] for i in best_open_data_indexes]
+        best_open_data_dates = best_open_data_dates + [stock_data_last_days[0]['date']]
+
+        exogenous_series = [SN.normalize_market_data(stock_data_last_days[i], st.session_state['smoothing_window'])[1] for i in best_open_data_indexes]
+        endogenous_series = SN.normalize_market_data(stock_data_last_days[0], 1)[1]
+
+        prediction_machine = stockPredictor(exogenous_series, endogenous_series)
+        prediction_machine.data_divider(prediction_vision)
+        if st.session_state['predictor_option'] == 'DTW Regresion':
+            prediction = prediction_machine.DTW_regresion()
+        elif st.session_state['predictor_option'] == 'Ridge regression':
+            prediction = prediction_machine.ridge_model()
+        elif st.session_state['predictor_option'] == 'Elastic Net':
+            prediction = prediction_machine.elastic_net()
+
+        stock_plotter.plot_pre_n_open_market_interactive(stock_data_last_days, str(st.session_state['stock']), best_open_data_indexes, prediction_vision, best_open_data_dates, st.session_state['smoothing_window'], prediction)  # Plot the data after user input
+    else:
+        # Display an animated GIF
+        st.write("Waiting for user input...")
+        st.image("https://media.giphy.com/media/6oeRBKg7mwEZnSnYkn/giphy.gif", use_column_width=True)
+
+    # Check if stock data exists and call the plot function
+    if st.session_state['T_or_F_exists']:
+        st.session_state['lists_of_measures'] = SA.get_pre_market_measures(stock_data_last_days, st.session_state['smoothing_window'])
+        best_pre_market_match = st.session_state['lists_of_measures'][measures_to_num_n_type[metric_option][0]]
+        circle_indexes = [i for i, _ in SA.max_min_of_abs(best_pre_market_match, measures_to_num_n_type[metric_option][1])]  # Get top 3 best results
+        dates_to_display = [stock_data_last_days[i]['date'] for i in range(len(stock_data_last_days))]
+        stock_plotter.plot_horizontal_heatmap(best_pre_market_match, circle_indexes, dates_to_display)  # Plot the data after user input
+
+    # Check if stock data exists and call the plot function
+    if st.session_state['T_or_F_exists']:
+        stock_plotter.display_stock_details(st.session_state['stock_data'], best_open_data_dates)
+
+    # Display the JavaScript in the Streamlit app
+    components.html(js_code)
+
+# ========================

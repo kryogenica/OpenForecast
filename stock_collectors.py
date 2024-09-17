@@ -88,7 +88,7 @@ class stockChecker:
             "open_market_data": open_market_data
         }
     
-    def get_last_trading_days(self, ticker: str, date, back_window=25):
+    def get_last_trading_days(self, ticker: str, date, back_window=30):
         """
         Fetch and filter stock data for the last 30 trading days (Monday to Friday).
         Args:
@@ -129,3 +129,93 @@ class stockChecker:
             counter += 1
 
         return historical_data
+    
+    def highlight_col(self, value, dates):
+        colors = ['red', 'blue', 'violet']
+        for j, i in enumerate(dates):
+            if value == dates[j]:
+                return f'background-color: {colors[j]}'
+            
+    def get_day_of_week(self, date_str):
+        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+        return days[date_obj.weekday()]
+
+    def get_details_on_stock_per_date(self, data, dates, current):
+        '''This function recieves the indexese of the stock and returns a dataframe with opening and closing prices along with the volume'''
+        # Initialize an empty list to store the rows of the dataframe
+        rows = []
+        symbol = ['▲', '⬟', '■', 'Latest']
+        if current==True:
+            dia = dates[-1]
+            pre_close_price = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['Close']
+            pre_open_price = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['Open']
+            pre_volume = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['Volume']
+            pre_high_price = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['High']
+            pre_low_price = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['Low']
+        
+            # Append the row to the list
+            rows.append({
+            'Symbol': 'NaN',
+            'Day': self.get_day_of_week(dia),
+            'Date': datetime.strptime(dia, '%Y-%m-%d').strftime('%d-%m-%Y'),
+            'Close 8:29am': pre_close_price,
+            'Open 9:30am': 'NaN',
+            'Opening Gap': 'NaN',
+            'Volume 9:30am': 'NaN',
+            'High 8:29am': pre_high_price,
+            'Low 8:29am': pre_low_price,
+            'High 9:30am': 'NaN',
+            'Low 9:30am': 'NaN'
+            })
+
+        # Iterate over the dates and extract the required details
+        for day_data in data:
+            if current==True:
+                const = 1
+            else:
+                const = 0
+            for j in range(len(dates)-const):
+            
+                dia = dates[j]
+                if day_data["date"] == dia:
+                    # Access the pre-market data for the specific time
+                    pre_close_price = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['Close']
+                    pre_open_price = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['Open']
+                    pre_volume = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['Volume']
+                    pre_high_price = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['High']
+                    pre_low_price = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['Low']
+
+                    # Access the open market data for the specific time
+                    post_close_price = day_data["open_market_data"].loc[str(dia)+' 09:30:00-04:00']['Close']
+                    post_open_price = day_data["open_market_data"].loc[str(dia)+' 09:30:00-04:00']['Open']
+                    post_volume = day_data["open_market_data"].loc[str(dia)+' 09:30:00-04:00']['Volume']
+                    post_high_price = day_data["open_market_data"].loc[str(dia)+' 09:30:00-04:00']['High']
+                    post_low_price = day_data["open_market_data"].loc[str(dia)+' 09:30:00-04:00']['Low']
+
+                    # Calculate the gap between the pre-market close and open market open
+                    gap = post_open_price - pre_close_price
+
+                    # Append the row to the list
+                    rows.append({
+                    'Symbol': symbol[j],
+                    'Day': self.get_day_of_week(dia),
+                    'Date': datetime.strptime(dia, '%Y-%m-%d').strftime('%d-%m-%Y'),
+                    'Close 8:29am': pre_close_price,
+                    'Open 9:30am': post_open_price,
+                    'Opening Gap': gap,
+                    'Volume 9:30am': post_volume,
+                    'High 8:29am': pre_high_price,
+                    'Low 8:29am': pre_low_price,
+                    'High 9:30am': post_high_price,
+                    'Low 9:30am': post_low_price
+                    })
+
+        # Create a DataFrame from the list of rows
+        df = pd.DataFrame(rows)
+
+        # Highlight the date
+        df.style.applymap(lambda value: self.highlight_col(value, dates), subset=['Date'])
+
+        return df
+
