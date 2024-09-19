@@ -28,11 +28,10 @@ class stockAnalyzer:
         elif Type == 'OPEN':
             full_index = pd.date_range(start=(f"{date_str} 09:30:00-04:00"), end=(f"{date_str} 16:00:00-04:00"), freq='1min')
         elif Type == 'ACTIVE':
-            #full_index = pd.date_range(start=(f"{date_str} 09:30:00-04:00"), end=(f"{date_str} {adjustment}:00-04:00"), freq='1min')
-            full_index = pd.date_range(start=(f"{date_str} 09:30:00-04:00"), end=(f"{date_str} 16:00:00-04:00"), freq='1min')# For testing purposes
+            full_index = pd.date_range(start=(f"{date_str} 09:30:00-04:00"), end=(f"{date_str} {adjustment}:00-04:00"), freq='1min')
+            #full_index = pd.date_range(start=(f"{date_str} 09:30:00-04:00"), end=(f"{date_str} 16:00:00-04:00"), freq='1min')# For testing purposes
         # Reindex the DataFrame with the full index
         data = data.reindex(full_index)
-        
         # Special case: fill the first missing values by bfill()
         if data.isna().iloc[0]:
             data = data.bfill()
@@ -254,7 +253,7 @@ class stockNormalizer:
         if special_case:
             nyc_timezone = pytz.timezone('America/New_York')
             now = datetime.datetime.now(nyc_timezone)
-            now = f"{now.strftime('%I:%M')}"
+            now = f"{now.strftime('%H:%M')}"
             open_data_raw = SA.fill_missing_minutes(day_data["open_market_data"]["Open"], 'ACTIVE', now)
         else:
             open_data_raw = SA.fill_missing_minutes(day_data["open_market_data"]["Open"], 'OPEN')

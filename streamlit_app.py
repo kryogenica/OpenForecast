@@ -1,6 +1,7 @@
 import streamlit as st
 import sys
 import os
+import psutil
 sys.path.append(os.path.join(os.path.dirname(__file__), 'Scripts'))
 from Scripts.stock_plotter import StockPlotter
 from Scripts.stock_collectors import stockChecker
@@ -10,8 +11,36 @@ import pytz
 import webbrowser
 import streamlit.components.v1 as components
 import streamlit as st
-import qrcode
-from io import BytesIO
+import subprocess
+import importlib
+import Scripts.dummy
+
+
+# Set the page configuration
+st.set_page_config(
+    page_title="Open Forecast Stock Predictor",
+    page_icon="logo_preview_rev_1.png",
+    layout="wide",
+    initial_sidebar_state="expanded",
+    menu_items={
+        'Report a bug': "mailto:kryogenica@gmail.com",
+        'About': '''OpenForecast is a Streamlit-based web app that helps users predict future stock prices using machine learning.
+        The app uses pre-opening stock prices (from Yahoo Finance) of previous days' hours to select the previous 3 hours of open market prices of previous days to forecast future trends.
+        It's designed for real-time stock price analysis and visualization, making it a simple yet powerful tool for financial forecasting.
+        If you would like to see more features or would like something custom built, please feel free to reach out to me at: kryogenica@gmail.com'''
+    }
+)
+
+# Function to start or stop the refresh.py script
+def control_refresh_script(action):
+    if action == 'run':
+        # Start refresh.py as a background process
+        subprocess.Popen([sys.executable, "Scripts/refresh.py"])
+    elif action == 'stop':
+        # Find the process ID of refresh.py and terminate it
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            if 'refresh.py' in proc.info['cmdline']:
+                proc.terminate()
 
 # Ethereum donation section
 def show_donation_section():
@@ -32,21 +61,7 @@ def show_donation_section():
     # Display donation section
     st.write("Or you can consider donating some Ethereum to the following address:")
     st.code(eth_wallet_address)
-
-# Set the page configuration
-st.set_page_config(
-    page_title="Open Forecast",
-    layout="wide",
-    initial_sidebar_state="expanded",
-    menu_items={
-        'Get Help': 'https://www.example.com',
-        'Report a bug': "mailto:kryogenica@gmail.com",
-        'About': '''OpenForecast is a Streamlit-based web app that aids users to predict future stock prices using machine learning.
-        The app uses the pre-opening stock prices of previous days hours to select previous 3-hours of open market prices of previous days to forecast future trends.
-        It's designed for real-time stock price analysis and visualization, making it a simple yet powerful tool for financial forecasting.
-        If you would like to see more features or would like something custom built, please feel free to reach out to me at: kryogenica@gmail.com'''
-    }
-)
+    st.write("The data used here comes from the freely available Yahoo Finance provider. If you would like your private stock data provider custom adapted with this app, please feel free to reach out to: kryogenica@gmail.com")
 
 # Open the browser to send an email
 webbrowser.open("mailto:kryogenica@gmail.com")
@@ -69,7 +84,7 @@ current_time_nyc = datetime.now(nyc_tz).time()
 
 # Define the market open and close times
 market_open_time = datetime.strptime("09:30", "%H:%M").time()
-market_close_time = datetime.strptime("23:00", "%H:%M").time()
+market_close_time = datetime.strptime("16:00", "%H:%M").time()
 
 active_trading = False
 if latest_day == datetime.now().strftime('%Y-%m-%d'):
@@ -99,6 +114,7 @@ if 'active_feature' not in st.session_state:
     st.session_state['Trading_day'] = latest_day
     st.session_state['input_label'] = "Type Stock Indicator here:"
     st.session_state['matching_window'] = -30
+    st.session_state['random_number'] = Scripts.dummy.Content
 
 # ========================
 #    Streamlit Sidebar
@@ -208,6 +224,7 @@ with st.sidebar:
                     st.session_state['active_stock_data'].extend(st.session_state['latest_day_stock_data'])
                                 
                     print("Data has been collected.")
+
                     # Update the label in the sidebar and re-run the app
                     user_input = ""
                     st.rerun()
@@ -276,9 +293,36 @@ with st.sidebar:
     if st.sidebar.button('Support the project'):
         show_donation_section()
 
+
+
 # ========================
 #    Streamlit Block-container
 # ========================
+
+# Function to read and display the content of Scripts.dummy
+def display_dummy_content(random_number):
+    try:
+        import Scripts.dummy
+        importlib.reload(Scripts.dummy)
+        if random_number != Scripts.dummy.Content:
+            random_number = Scripts.dummy.Content
+            refreshed_data = SC.get_last_trading_days(st.session_state['stock'].upper(), datetime.now().strftime('%Y-%m-%d'), back_window=1)
+            st.write(refreshed_data)
+            refreshed_data.extend(st.session_state['latest_day_stock_data'])
+            st.session_state['active_stock_data'] = refreshed_data
+            
+    except Exception as e:
+        st.write(f"Error reading Scripts.dummy: {e}")
+
+if st.session_state['active_feature'] == 'Currently Trading':
+    # Call the function to start refresh.py
+    control_refresh_script('run')
+    # Call the function to display the content of Scripts.dummy
+    display_dummy_content(st.session_state['random_number'])
+elif st.session_state['active_feature'] == 'Most Recent':
+    # Call the function to stop refresh.py
+    control_refresh_script('stop')
+
 
 # JavaScript code to maintain the scroll position
 js_code = """
@@ -302,7 +346,11 @@ js_code = """
 """
 
 # Title for the app
-st.title("Open Forecast")
+col1, col2 = st.columns([1, 5])
+with col1:
+    st.image("logo_preview_rev_1.png", width=100)
+with col2:
+    st.title("Open Forecast")
 
 # Create a container for the main content
 with st.container():
@@ -376,5 +424,4 @@ with st.container():
 
     # Display the JavaScript in the Streamlit app
     components.html(js_code)
-
 # ========================

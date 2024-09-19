@@ -69,7 +69,7 @@ class StockPlotter:
                     x=list(range(-len(normalized_pre_data), 0)),
                     y=normalized_pre_data,
                     mode='lines',
-                    line=dict(color=colors[k], width=3),
+                    line=dict(color=colors[k], width=2, dash='dot'),
                     name=f'Best Day {i} Pre-market',
                     hovertemplate=f'Compatible trading data<br>Date: {dates[k]}<br>Time: %{{x}} min<br>Close: %{{y:.2f}}%<extra></extra>'  # Format hover to 2 decimal places
                 ))
@@ -77,7 +77,7 @@ class StockPlotter:
                     x=list(range(0, len(normalized_open_data))),
                     y=normalized_open_data,
                     mode='lines',
-                    line=dict(color=colors[k], width=3),
+                    line=dict(color=colors[k], width=2, dash='dot'),
                     name=f'Best Day {i} Open-market',
                     hovertemplate=f'Compatible trading data<br>Date: {dates[k]}<br>Time: %{{x}} min<br>Open: %{{y:.2f}}%<extra></extra>'  # Format hover to 2 decimal places
                 ))
@@ -94,7 +94,7 @@ class StockPlotter:
             x=list(range(-len(normalized_pre_data), 0)),
             y=normalized_pre_data,
             mode='lines',
-            line=dict(color='white', width=3, dash='dot'),
+            line=dict(color='gray', width=4),
             name='Latest Day Pre-market',
             hovertemplate=f'Most recent trading data<br>Date: {dates[-1]}<br>Time: %{{x}} min<br>Close: %{{y:.2f}}%<extra></extra>'  # Format hover to 2 decimal places
         ))
@@ -102,7 +102,7 @@ class StockPlotter:
             x=list(range(0, len(normalized_open_data))),
             y=normalized_open_data,
             mode='lines',
-            line=dict(color='white', width=3, dash='dot'),
+            line=dict(color='gray', width=4),
             name='Latest Day Open-market',
             hovertemplate=f'Most recent trading data<br>Date: {dates[-1]}<br>Time: %{{x}} min<br>Open: %{{y:.2f}}%<extra></extra>'  # Format hover to 2 decimal places
         ))
@@ -116,7 +116,7 @@ class StockPlotter:
                 x=list(range(0, len(prediction))),
                 y=prediction,
                 mode='lines',
-                line=dict(color='white', width=4),
+                line=dict(color='gold', width=2),
                 name='Prediction',
                 hovertemplate='Prediction<br>Time: %{x} min<br>Open: %{y:.2f} %<extra></extra>'  # Format hover to 2 decimal places
             ))
@@ -145,7 +145,7 @@ class StockPlotter:
 
         # Add shading
         fig.add_vrect(x0=0, x1=vision, fillcolor='pink', opacity=0.2, line_width=0)
-        fig.add_vrect(x0=matching_window, x1=0, fillcolor='green', opacity=0.2, line_width=0)
+        fig.add_vrect(x0=matching_window, x1=0, fillcolor='blue', opacity=0.1, line_width=0)
 
         # Set layout
         fig.update_layout(
@@ -165,7 +165,7 @@ class StockPlotter:
 
     @st.cache_data
     def plot_horizontal_heatmap(_self, values, circle_indexes, dates_to_display):
-        print(values)
+        
         """
         Plots a list of values as a vertical heatmap.
         Args:
