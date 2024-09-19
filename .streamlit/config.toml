@@ -1,6 +1,22 @@
 [theme]
-base="light"
+base="dark"
 secondaryBackgroundColor="#9fa5b1"
 
 [server]
 runOnSave = true
+
+[browser]
+# Set the page title (the text in the browser tab)
+title = "Open Forecast Stock Predictor"
+
+# Set the page icon (favicon)
+# This can be a URL or a local file path ending with .ico, .png, or .jpg
+favicon = "logo_preview_rev_1.png"
+
+# Set the layout mode
+# true for wide mode, false for centered mode
+wideMode = true
+
+[ui]
+# Set the initial sidebar state ("auto", "expanded", "collapsed")
+initial_sidebar_state = "expanded"
