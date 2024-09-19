@@ -9,4 +9,4 @@ def refresher(seconds):
          f.write(f"Content = '{randint(0, 1000)}'")
       time.sleep(seconds)
 while(1):
-   refresher(10) # 20s for example
+   refresher(60) # 20s for example

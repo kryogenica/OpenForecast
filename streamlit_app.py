@@ -2,6 +2,7 @@ import streamlit as st
 import sys
 import os
 import psutil
+import signal
 sys.path.append(os.path.join(os.path.dirname(__file__), 'Scripts'))
 from Scripts.stock_plotter import StockPlotter
 from Scripts.stock_collectors import stockChecker
@@ -31,16 +32,42 @@ st.set_page_config(
     }
 )
 
-# Function to start or stop the refresh.py script
+
+def is_refresh_script_process():
+    """Check if refresh.py is already running and return the process object."""
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        try:
+            if proc.info['cmdline']:
+                cmdline = ' '.join(proc.info['cmdline'])
+                if 'Scripts/refresh.py' in cmdline and '--from-streamlit' in cmdline:
+                    return proc
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+    return None
+
 def control_refresh_script(action):
+    """Start or stop the refresh.py script based on the action."""
     if action == 'run':
-        # Start refresh.py as a background process
-        subprocess.Popen([sys.executable, "Scripts/refresh.py"])
+        proc = is_refresh_script_process()
+        if proc and proc.is_running():
+            st.write("`refreshing` is running")
+        else:
+            # Start refresh.py as a background process with a unique identifier
+            process = subprocess.Popen([sys.executable, "Scripts/refresh.py", "--from-streamlit"])
+            st.write(f"`refreshing` has started.")
     elif action == 'stop':
-        # Find the process ID of refresh.py and terminate it
-        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-            if 'refresh.py' in proc.info['cmdline']:
+        proc = is_refresh_script_process()
+        if proc and proc.is_running():
+            try:
                 proc.terminate()
+                proc.wait(timeout=5)  # Wait for the process to terminate
+                st.write("`refreshing` has been stopped.")
+            except (psutil.NoSuchProcess, psutil.TimeoutExpired):
+                proc.kill()
+                st.write("`refreshing` did not terminate gracefully and was killed.")
+        else:
+            st.write("`refreshing` is not running.")
+
 
 # Ethereum donation section
 def show_donation_section():
@@ -84,7 +111,7 @@ current_time_nyc = datetime.now(nyc_tz).time()
 
 # Define the market open and close times
 market_open_time = datetime.strptime("09:30", "%H:%M").time()
-market_close_time = datetime.strptime("18:00", "%H:%M").time()
+market_close_time = datetime.strptime("16:00", "%H:%M").time()
 
 active_trading = False
 if latest_day == datetime.now().strftime('%Y-%m-%d'):
@@ -116,6 +143,7 @@ if 'active_feature' not in st.session_state:
     st.session_state['matching_window'] = -30
     st.session_state['random_number'] = Scripts.dummy.Content
     st.session_state['Refresh_killer_access'] = False
+    st.session_state['Collect_data'] = False
 
 # ========================
 #    Streamlit Sidebar
@@ -225,6 +253,9 @@ with st.sidebar:
                     st.session_state['active_stock_data'].extend(st.session_state['latest_day_stock_data'])
                                 
                     print("Data has been collected.")
+                    st.session_state['Collect_data'] = True
+                    # Call the function to stop refresh.py
+                    control_refresh_script('run')
 
                     # Update the label in the sidebar and re-run the app
                     user_input = ""
@@ -308,7 +339,6 @@ def display_dummy_content(random_number):
         if random_number != Scripts.dummy.Content:
             random_number = Scripts.dummy.Content
             refreshed_data = SC.get_last_trading_days(st.session_state['stock'].upper(), datetime.now().strftime('%Y-%m-%d'), back_window=1)
-            st.write(refreshed_data)
             refreshed_data.extend(st.session_state['latest_day_stock_data'])
             st.session_state['active_stock_data'] = refreshed_data
             
@@ -316,18 +346,11 @@ def display_dummy_content(random_number):
         st.write(f"Error reading Scripts.dummy: {e}")
 
 if st.session_state['active_feature'] == 'Currently Trading':
-    if st.session_state['T_or_F_exists']:
-        # Call the function to start refresh.py
-        control_refresh_script('run')
+    if st.session_state['Collect_data']:
         # Call the function to recollect latest data
         display_dummy_content(st.session_state['random_number'])
         st.session_state['Refresh_killer_access'] = True
 
-elif st.session_state['active_feature'] == 'Most Recent':
-    if st.session_state['T_or_F_exists']:
-        if st.session_state['Refresh_killer_access']:
-            # Call the function to stop refresh.py
-            control_refresh_script('stop')
 
 
 # JavaScript code to maintain the scroll position
@@ -352,7 +375,7 @@ js_code = """
 """
 
 # Title for the app
-col1, col2 = st.columns([1, 5])
+col1, col2, col3 = st.columns([1, 6, 12])
 with col1:
     st.image("logo_preview_rev_1.png", width=100)
 with col2:
@@ -398,8 +421,18 @@ with st.container():
             special_case = True
         else:
             special_case = False
-            
+
         stock_plotter.plot_pre_n_open_market_interactive(st.session_state['stock_data'], str(st.session_state['stock']), best_open_data_indexes, prediction_vision, st.session_state['matching_window'], best_open_data_dates, st.session_state['smoothing_window'], special_case, prediction)  # Plot the data after user input
+        
+        if st.session_state['active_feature'] == 'Currently Trading':
+            if st.session_state['Collect_data']:
+                # Call the function to stop refresh.py
+                control_refresh_script('run')
+
+        elif st.session_state['active_feature'] == 'Most Recent':
+            if st.session_state['Collect_data']:
+                # Call the function to stop refresh.py
+                control_refresh_script('stop')
     else:
         # Display an animated GIF
         st.write("Waiting for user input...")
