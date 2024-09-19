@@ -1,6 +1,8 @@
 import numpy as np
 from fastdtw import fastdtw
 import pandas as pd
+import datetime
+import pytz
 from scipy.stats import kendalltau
 from sklearn.metrics import mutual_info_score
 from sklearn.preprocessing import KBinsDiscretizer
@@ -10,7 +12,7 @@ from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
 
 class stockAnalyzer:
-    def fill_missing_minutes(self, data, Type):
+    def fill_missing_minutes(self, data, Type, adjustment='11:30'):
         """
         Introduces NaN values for missing datetime in the 'Close' column of a given DataFrame.
         Args:
@@ -24,7 +26,10 @@ class stockAnalyzer:
         if Type == 'PRE':
             full_index = pd.date_range(start=(f"{date_str} 06:01:00-04:00"), end=(f"{date_str} 09:29:00-04:00"), freq='1min')
         elif Type == 'OPEN':
-            full_index = pd.date_range(start=(f"{date_str} 09:30:00-04:00"), end=(f"{date_str} 11:30:00-04:00"), freq='1min')
+            full_index = pd.date_range(start=(f"{date_str} 09:30:00-04:00"), end=(f"{date_str} 12:41:00-04:00"), freq='1min')
+        elif Type == 'ACTIVE':
+            #full_index = pd.date_range(start=(f"{date_str} 09:30:00-04:00"), end=(f"{date_str} {adjustment}:00-04:00"), freq='1min')
+            full_index = pd.date_range(start=(f"{date_str} 09:30:00-04:00"), end=(f"{date_str} 10:00:00-04:00"), freq='1min')
         # Reindex the DataFrame with the full index
         data = data.reindex(full_index)
         
@@ -37,28 +42,16 @@ class stockAnalyzer:
 
         return data
 
-    def fill_missing_volume(self, data, Type):
-        """
-        Introduces NaN values for missing datetime in the 'Volumen' column of a given DataFrame.
-        Args:
-            data: The DataFrame containing stock data.
-            date: The date in 'YYYY-MM-DD' format.
-        Returns:
-            A DataFrame with NaN values filled for missing datetime.
-        """
-        # Create a DatetimeIndex with 1-minute intervals for the pre-market time range
-        date_str = data.index[0].strftime('%Y-%m-%d')
-        if Type == 'PRE':
-            full_index = pd.date_range(start=(f"{date_str} 06:01:00-04:00"), end=(f"{date_str} 09:29:00-04:00"), freq='1min')
-        elif Type == 'OPEN':
-            full_index = pd.date_range(start=(f"{date_str} 09:30:00-04:00"), end=(f"{date_str} 11:30:00-04:00"), freq='1min')
-        # Reindex the DataFrame with the full index
-        data = data.reindex(full_index)
-        return data
-
-    def get_pre_market_measures(self, data, smoothing_window):
+    def get_pre_market_measures(self, data, smoothing_window, matching_window=30):
         # Extract the first day's closing prices
         first_day_close = np.asanyarray(self.fill_missing_minutes(data[0]["pre_market_data"]["Close"], 'PRE'))
+
+        time_indexes = data[0]["pre_market_data"].index
+        first_time = time_indexes[0].time()
+        # Calculate the difference in minutes between the first time and '09:29:00'
+        target_time = datetime.datetime.strptime('09:29:00', '%H:%M:%S').time()
+        first_day_time_diff = int((datetime.datetime.combine(datetime.datetime.today(), target_time) - datetime.datetime.combine(datetime.datetime.today(), first_time)).total_seconds() / 60)
+
         first_day_close = pd.Series(first_day_close).rolling(window=smoothing_window).mean()#
         first_day_close = first_day_close[~np.isnan(first_day_close)]
         normalizer = first_day_close.iloc[-1]
@@ -74,10 +67,22 @@ class stockAnalyzer:
         # Iterate over the remaining days
         for day_data in data[1:]:
             close_prices = np.asanyarray(self.fill_missing_minutes(day_data["pre_market_data"]["Close"], 'PRE'))
+
+            time_indexes = day_data["pre_market_data"].index
+            first_time = time_indexes[0].time()
+            # Calculate the difference in minutes between the first time and '09:29:00'
+            close_prices_time_diff = int((datetime.datetime.combine(datetime.datetime.today(), target_time) - datetime.datetime.combine(datetime.datetime.today(), first_time)).total_seconds() / 60)
+
+
             close_prices = pd.Series(close_prices).rolling(window=smoothing_window).mean()#
             close_prices = close_prices[~np.isnan(close_prices)]
             normalizer = close_prices.iloc[-1]
             close_prices_norm = ((close_prices-normalizer)/normalizer)*100
+
+            # Ensure both arrays have the same length
+            min_length = min(first_day_time_diff, close_prices_time_diff, abs(matching_window))
+            first_day_close_norm = first_day_close_norm[-min_length:]
+            close_prices_norm = close_prices_norm[-min_length:]
 
             # Calculate and append measures between the first day and the current day
             value = np.corrcoef(first_day_close_norm, close_prices_norm)[0, 1]
@@ -231,7 +236,7 @@ class stockPredictor:
         return prediction
     
 class stockNormalizer:
-    def normalize_market_data(self, day_data, ventana):
+    def normalize_market_data(self, day_data, ventana, special_case=False):
         # Normalize pre-market data
         SA = stockAnalyzer()
         pre_data_raw = SA.fill_missing_minutes(day_data["pre_market_data"]["Close"], 'PRE')
@@ -241,7 +246,13 @@ class stockNormalizer:
         normalized_pre_data = ((pre_data - pre_normalizer) / pre_normalizer) * 100
 
         # Normalize open market data
-        open_data_raw = SA.fill_missing_minutes(day_data["open_market_data"]["Open"], 'OPEN')
+        if special_case:
+            nyc_timezone = pytz.timezone('America/New_York')
+            now = datetime.datetime.now(nyc_timezone)
+            now = f"{now.strftime('%I:%M')}"
+            open_data_raw = SA.fill_missing_minutes(day_data["open_market_data"]["Open"], 'ACTIVE', now)
+        else:
+            open_data_raw = SA.fill_missing_minutes(day_data["open_market_data"]["Open"], 'OPEN')
         open_data = open_data_raw.rolling(window=ventana).mean().shift(-(ventana))
         open_normalizer = open_data_raw.iloc[0]
         open_data = open_data.dropna()

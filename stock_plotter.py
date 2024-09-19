@@ -12,10 +12,18 @@ class StockPlotter:
         _self.SA = stock_analyzer
         _self.SN = stock_normalizer
 
+    def remove_trailing_duplicates(self, data):
+            last_value = data[-1]
+            for i in range(len(data) - 1, -1, -1):
+                if data[i] != last_value:
+                    return data[:i + 1]
+
     @st.cache_data
-    def plot_pre_n_open_market_interactive(_self, stock_data_last_days, ticker_name, best_open_data_indexes, vision, dates, smoothing_window, prediction=None):
+    def plot_pre_n_open_market_interactive(_self, stock_data_last_days, ticker_name, best_open_data_indexes, vision, matching_window, dates, smoothing_window, special_case, prediction=None):
         window = smoothing_window
         all_values = []
+        pre_lengths = []
+        open_lengths = []
         # Create a plotly figure
         fig = go.Figure()
 
@@ -24,6 +32,8 @@ class StockPlotter:
             if i not in best_open_data_indexes and i > 0:
                 delta = 0.5 * ((i + 1) / len(stock_data_last_days))
                 normalized_pre_data, normalized_open_data = _self.SN.normalize_market_data(day_data, window)
+                pre_lengths.append(len(normalized_pre_data))
+                open_lengths.append(len(normalized_open_data))
                 all_values.extend(normalized_pre_data)
                 all_values.extend(normalized_open_data)
                 fig.add_trace(go.Scatter(
@@ -43,12 +53,16 @@ class StockPlotter:
                     hoverinfo='skip'  # Make this trace non-interactive
                 ))
 
+        
+
         k = 0
         colors = ['red', 'blue', 'violet']
         # Plot selected pre and open market data with most similar pre-open market data to latest day
         for i, day_data in enumerate(stock_data_last_days):
             if i in best_open_data_indexes:
                 normalized_pre_data, normalized_open_data = _self.SN.normalize_market_data(day_data, window)
+                pre_lengths.append(len(normalized_pre_data))
+                open_lengths.append(len(normalized_open_data))
                 all_values.extend(normalized_pre_data)
                 all_values.extend(normalized_open_data)
                 fig.add_trace(go.Scatter(
@@ -70,7 +84,9 @@ class StockPlotter:
                 k += 1
 
         # Plot selected pre and open market data of latest day
-        normalized_pre_data, normalized_open_data = _self.SN.normalize_market_data(stock_data_last_days[0], window)
+        normalized_pre_data, normalized_open_data = _self.SN.normalize_market_data(stock_data_last_days[0], window, special_case=special_case)
+        pre_lengths.append(len(normalized_pre_data))
+        open_lengths.append(len(normalized_open_data))
         all_values.extend(normalized_pre_data)
         all_values.extend(normalized_open_data)
         fig.add_trace(go.Scatter(
@@ -105,10 +121,10 @@ class StockPlotter:
             ))
 
         # Calculate tick values for every 30 minutes interval
-        negative_tick_vals = list(range(0, len(normalized_pre_data),  30))
+        negative_tick_vals = list(range(0, max(pre_lengths),  30))
         negative_tick_vals.reverse()
         negative_tick_vals = [-1 * int(i) for i in negative_tick_vals]
-        positive_tick_vals = list(range(0, len(normalized_open_data), 30))
+        positive_tick_vals = list(range(0, max(open_lengths), 30))
         tick_vals = negative_tick_vals + positive_tick_vals
         tick_text = [f'{t}' for t in tick_vals]  # Label each tick
 
@@ -123,12 +139,12 @@ class StockPlotter:
         # Add vertical and horizontal lines
         fig.add_shape(type='line', x0=0, y0=y_min, x1=0, y1=y_max,
                       line=dict(color='white', width=0.5))
-        fig.add_shape(type='line', x0=-len(normalized_pre_data), y0=0, x1=len(normalized_open_data), y1=0,
+        fig.add_shape(type='line', x0=-max(pre_lengths), y0=0, x1=max(open_lengths), y1=0,
                       line=dict(color='white', width=0.5))
 
         # Add shading
         fig.add_vrect(x0=0, x1=vision, fillcolor='pink', opacity=0.2, line_width=0)
-        #fig.add_vrect(x0=vision, x1=len(normalized_open_data), fillcolor='white', opacity=0.05, line_width=0)
+        fig.add_vrect(x0=matching_window, x1=0, fillcolor='green', opacity=0.2, line_width=0)
 
         # Set layout
         fig.update_layout(

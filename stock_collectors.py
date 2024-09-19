@@ -81,7 +81,7 @@ class stockChecker:
         pre_market_data = full_day_data_1m_pre.between_time("06:01", "09:29")
 
         # Filter open market data (9:30 AM to 10:30 AM) at 1-minute intervals
-        open_market_data = full_day_data_1m.between_time("09:30", "11:30")
+        open_market_data = full_day_data_1m.between_time("09:30", "12:41")
 
         return {
             "pre_market_data": pre_market_data,
@@ -148,11 +148,20 @@ class stockChecker:
         symbol = ['▲', '⬟', '■', 'Latest']
         if current==True:
             dia = dates[-1]
-            pre_close_price = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['Close']
-            pre_open_price = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['Open']
-            pre_volume = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['Volume']
-            pre_high_price = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['High']
-            pre_low_price = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['Low']
+            try:
+                pre_close_price = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['Close']
+            except KeyError:
+                pre_close_price = 'NaN'
+            
+            try:
+                pre_high_price = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['High']
+            except KeyError:
+                pre_high_price = 'NaN'
+            
+            try:
+                pre_low_price = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['Low']
+            except KeyError:
+                pre_low_price = 'NaN'
         
             # Append the row to the list
             rows.append({
@@ -179,22 +188,49 @@ class stockChecker:
             
                 dia = dates[j]
                 if day_data["date"] == dia:
-                    # Access the pre-market data for the specific time
-                    pre_close_price = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['Close']
-                    pre_open_price = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['Open']
-                    pre_volume = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['Volume']
-                    pre_high_price = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['High']
-                    pre_low_price = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['Low']
+                    try:
+                        # Access the pre-market data for the specific time
+                        pre_close_price = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['Close']
+                    except KeyError:
+                        pre_close_price = 'NaN'
+                    
+                    try:
+                        pre_high_price = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['High']
+                    except KeyError:
+                        pre_high_price = 'NaN'
+                    
+                    try:
+                        pre_low_price = day_data["pre_market_data"].loc[str(dia)+' 09:29:00-04:00']['Low']
+                    except KeyError:
+                        pre_low_price = 'NaN'
 
-                    # Access the open market data for the specific time
-                    post_close_price = day_data["open_market_data"].loc[str(dia)+' 09:30:00-04:00']['Close']
-                    post_open_price = day_data["open_market_data"].loc[str(dia)+' 09:30:00-04:00']['Open']
-                    post_volume = day_data["open_market_data"].loc[str(dia)+' 09:30:00-04:00']['Volume']
-                    post_high_price = day_data["open_market_data"].loc[str(dia)+' 09:30:00-04:00']['High']
-                    post_low_price = day_data["open_market_data"].loc[str(dia)+' 09:30:00-04:00']['Low']
+                    try:
+                        # Access the open market data for the specific time
+                        post_open_price = day_data["open_market_data"].loc[str(dia)+' 09:30:00-04:00']['Open']
+                    except KeyError:
+                        post_open_price = 'NaN'
+                    
+                    try:
+                        post_volume = day_data["open_market_data"].loc[str(dia)+' 09:30:00-04:00']['Volume']
+                    except KeyError:
+                        post_volume = 'NaN'
+                    
+                    try:
+                        post_high_price = day_data["open_market_data"].loc[str(dia)+' 09:30:00-04:00']['High']
+                    except KeyError:
+                        post_high_price = 'NaN'
+                    
+                    try:
+                        post_low_price = day_data["open_market_data"].loc[str(dia)+' 09:30:00-04:00']['Low']
+                    except KeyError:
+                        post_low_price = 'NaN'
 
                     # Calculate the gap between the pre-market close and open market open
-                    gap = post_open_price - pre_close_price
+                    if pre_close_price != 'NaN' and post_open_price != 'NaN':
+                        gap = post_open_price - pre_close_price
+                    else:
+                        gap = 'NaN'
+
 
                     # Append the row to the list
                     rows.append({
