@@ -2,8 +2,6 @@ import streamlit as st
 import sys
 import os
 import psutil
-import signal
-sys.path.append(os.path.join(os.path.dirname(__file__), 'Scripts'))
 from Scripts.stock_plotter import StockPlotter
 from Scripts.stock_collectors import stockChecker
 from Scripts.stock_analyzers import stockAnalyzer, stockPredictor, stockNormalizer
@@ -16,6 +14,7 @@ import subprocess
 import importlib
 import Scripts.dummy
 
+sys.path.append(os.path.join(os.path.dirname(__file__), 'Scripts'))
 
 # Set the page configuration
 st.set_page_config(

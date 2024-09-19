@@ -1,0 +1,12 @@
+numpy
+fastdtw
+pandas
+pytz
+scipy
+scikit-learn
+streamlit
+psutil
+yfinance
+pandas_market_calendars
+plotly
+matplotlib
