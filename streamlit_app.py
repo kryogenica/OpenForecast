@@ -414,7 +414,7 @@ with st.container():
         elif st.session_state['predictor_option'] == 'Elastic Net':
             prediction = prediction_machine.elastic_net()
 
-        if 'Trading_day' in st.session_state and st.session_state['Trading_day'] == datetime.now().strftime('%Y-%m-%d'):
+        if st.session_state['active_feature'] == 'Currently Trading':
             special_case = True
         else:
             special_case = False
