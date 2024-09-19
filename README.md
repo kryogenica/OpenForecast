@@ -1,6 +1,8 @@
 
 # OpenForecast: Real-Time Stock Price Prediction App
 
+![Open Forecast in action](./Images/Screenshot.png)
+
 **OpenForecast** is a web-based application built using **Streamlit** that allows users to analyze and predict future stock prices based on machine learning techniques. It utilizes the pre-opening stock prices of previous days to forecast future trends, helping users make informed financial decisions. The application fetches real-time stock data, performs analysis, and visualizes the trends for a better understanding of the market. Check it out in full action here: [Open Forecast](https://open-forecast.streamlit.app/)
 
 ## Folder Structure

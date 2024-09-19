@@ -19,7 +19,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'Scripts'))
 # Set the page configuration
 st.set_page_config(
     page_title="Open Forecast Stock Predictor",
-    page_icon="logo_preview_rev_1.png",
+    page_icon="Images/logo_preview_rev_1.png",
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
@@ -374,7 +374,7 @@ js_code = """
 # Title for the app
 col1, col2= st.columns([1, 5])
 with col1:
-    st.image("logo_preview_rev_1.png", width=100)
+    st.image("Images/logo_preview_rev_1.png", width=100)
 with col2:
     st.title("Open Forecast")
 
