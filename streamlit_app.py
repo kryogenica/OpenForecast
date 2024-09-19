@@ -84,7 +84,7 @@ current_time_nyc = datetime.now(nyc_tz).time()
 
 # Define the market open and close times
 market_open_time = datetime.strptime("09:30", "%H:%M").time()
-market_close_time = datetime.strptime("16:00", "%H:%M").time()
+market_close_time = datetime.strptime("18:00", "%H:%M").time()
 
 active_trading = False
 if latest_day == datetime.now().strftime('%Y-%m-%d'):
@@ -115,6 +115,7 @@ if 'active_feature' not in st.session_state:
     st.session_state['input_label'] = "Type Stock Indicator here:"
     st.session_state['matching_window'] = -30
     st.session_state['random_number'] = Scripts.dummy.Content
+    st.session_state['Refresh_killer_access'] = False
 
 # ========================
 #    Streamlit Sidebar
@@ -315,13 +316,18 @@ def display_dummy_content(random_number):
         st.write(f"Error reading Scripts.dummy: {e}")
 
 if st.session_state['active_feature'] == 'Currently Trading':
-    # Call the function to start refresh.py
-    control_refresh_script('run')
-    # Call the function to display the content of Scripts.dummy
-    display_dummy_content(st.session_state['random_number'])
+    if st.session_state['T_or_F_exists']:
+        # Call the function to start refresh.py
+        control_refresh_script('run')
+        # Call the function to recollect latest data
+        display_dummy_content(st.session_state['random_number'])
+        st.session_state['Refresh_killer_access'] = True
+
 elif st.session_state['active_feature'] == 'Most Recent':
-    # Call the function to stop refresh.py
-    control_refresh_script('stop')
+    if st.session_state['T_or_F_exists']:
+        if st.session_state['Refresh_killer_access']:
+            # Call the function to stop refresh.py
+            control_refresh_script('stop')
 
 
 # JavaScript code to maintain the scroll position
