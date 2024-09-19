@@ -1,10 +1,13 @@
 import streamlit as st
-from stock_plotter import StockPlotter
-from stock_collectors import stockChecker
-from stock_analyzers import stockAnalyzer, stockPredictor, stockNormalizer
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), 'Scripts'))
+from Scripts.stock_plotter import StockPlotter
+from Scripts.stock_collectors import stockChecker
+from Scripts.stock_analyzers import stockAnalyzer, stockPredictor, stockNormalizer
 from datetime import datetime, timedelta
 import pytz
 import time
+import os
 import streamlit.components.v1 as components
 
 
@@ -132,7 +135,7 @@ with st.sidebar:
             )
 
     if st.session_state['active_feature'] == 'Most Recent':
-        st.markdown("<p style='font-size:13px;'>You are now viewing the two-hour period immediately after the market opened on the last trading day.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size:13px;'>You are now viewing the 3-hour period immediately after the market opened on the last trading day.</p>", unsafe_allow_html=True)
         st.session_state['Trading_day'] = latest_day
         print(st.session_state['Trading_day'])
         
