@@ -1,25 +1,56 @@
 import streamlit as st
 import sys
+import os
 sys.path.append(os.path.join(os.path.dirname(__file__), 'Scripts'))
 from Scripts.stock_plotter import StockPlotter
 from Scripts.stock_collectors import stockChecker
 from Scripts.stock_analyzers import stockAnalyzer, stockPredictor, stockNormalizer
 from datetime import datetime, timedelta
 import pytz
-import time
-import os
+import webbrowser
 import streamlit.components.v1 as components
+import streamlit as st
+import qrcode
+from io import BytesIO
 
+# Ethereum donation section
+def show_donation_section():
+    eth_wallet_address = "0xcD5130F65C67D93beb35465c52414FFa2086D1bB"
+    st.write("### Support the Project")
+    st.write("If you would like to support this project (more features incorportated), you can consider donating through PayPal:")
+    # PayPal donation link
+    paypal_link = "https://www.paypal.com/donate?business=kryogenica@gmail.com&currency_code=USD"
+    # Display PayPal donation button
+    st.markdown(f'''
+        <a href="{paypal_link}" target="_blank">
+            <button style="background-color:#0070BA;color:white;padding:10px;border:none;border-radius:5px;font-size:16px;">
+                Donate with PayPal
+            </button>
+        </a>
+    ''', unsafe_allow_html=True)
 
+    # Display donation section
+    st.write("Or you can consider donating some Ethereum to the following address:")
+    st.code(eth_wallet_address)
+
+# Set the page configuration
 st.set_page_config(
-    page_title="My App",
+    page_title="Open Forecast",
     layout="wide",
+    initial_sidebar_state="expanded",
     menu_items={
         'Get Help': 'https://www.example.com',
-        'Report a bug': "https://www.example.com",
-        'About': "# This is a header. This is an *extremely* cool app!"
+        'Report a bug': "mailto:kryogenica@gmail.com",
+        'About': '''OpenForecast is a Streamlit-based web app that aids users to predict future stock prices using machine learning.
+        The app uses the pre-opening stock prices of previous days hours to select previous 3-hours of open market prices of previous days to forecast future trends.
+        It's designed for real-time stock price analysis and visualization, making it a simple yet powerful tool for financial forecasting.
+        If you would like to see more features or would like something custom built, please feel free to reach out to me at: kryogenica@gmail.com'''
     }
 )
+
+# Open the browser to send an email
+webbrowser.open("mailto:kryogenica@gmail.com")
+
 # Instantiate the StockPlotter and other classes
 SC = stockChecker()
 SA = stockAnalyzer()
@@ -62,7 +93,7 @@ if 'active_feature' not in st.session_state:
     st.session_state['latest_day_stock_data'] = None
     st.session_state['active_stock_data'] = None
     st.session_state['lists_of_measures'] = None
-    st.session_state['predictor_option'] = 'DTW Regresion'
+    st.session_state['predictor_option'] = 'Ridge regression'
     metric_option = 'Pearson Correlation'
     st.session_state['smoothing_window'] = 5
     st.session_state['Trading_day'] = latest_day
@@ -128,21 +159,21 @@ with st.sidebar:
             </style>
             <div class="tooltip">
                 <button disabled style="cursor: not-allowed;">Open Trading</button>
-                <span class="tooltiptext">NYSE & Nasdaq are closed</span>
+                <span class="tooltiptext">NYSE & Nasdaq are closed.</span>
             </div>
             """,
             unsafe_allow_html=True
             )
 
     if st.session_state['active_feature'] == 'Most Recent':
-        st.markdown("<p style='font-size:13px;'>You are now viewing the 3-hour period immediately after the market opened on the last trading day.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size:13px;'>You now have enabled viewing of both pre-market the opened market on the last trading day and the month before it.</p>", unsafe_allow_html=True)
         st.session_state['Trading_day'] = latest_day
         print(st.session_state['Trading_day'])
         
     elif st.session_state['active_feature'] == 'Currently Trading':
         # Custom CSS for neon glow effect
         stock_plotter.display_neon_text(text="Market is Open", font_size=20, color="blue")
-        st.markdown("<p style='font-size:13px;'>You are now viewing the current period immediately after the market opened on todays trading day.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size:13px;'>You now have enabled viewing of the current trading period on todays trading day and a month before it.</p>", unsafe_allow_html=True)
         st.session_state['Trading_day'] = datetime.now().strftime('%Y-%m-%d')
         print(st.session_state['Trading_day'])
         
@@ -212,7 +243,7 @@ with st.sidebar:
     # Create a radio button selection in the sidebar
     st.session_state['predictor_option'] = st.sidebar.radio(
         "Choose the type of prediction mechanism:",
-        ('DTW Regresion', 'Ridge regression', 'Elastic Net')
+        ('Ridge regression', 'DTW Regresion', 'Elastic Net')
     )
 
     # Add a numeric scroller (slider) for controlling a window used for prediction
@@ -241,6 +272,9 @@ with st.sidebar:
     time_placeholder = st.empty()
     current_time_nyc = datetime.now(nyc_tz).strftime("%H:%M:%S")
     time_placeholder.write(f"Last refreshed at {current_time_nyc} NYC time")
+
+    if st.sidebar.button('Support the project'):
+        show_donation_section()
 
 # ========================
 #    Streamlit Block-container
@@ -277,9 +311,11 @@ with st.container():
         
         if st.session_state['active_feature'] == 'Currently Trading':
             st.session_state['stock_data'] = st.session_state['active_stock_data']
+            cut_off_active_data = True
 
         elif st.session_state['active_feature'] == 'Most Recent':
             st.session_state['stock_data'] = st.session_state['latest_day_stock_data']
+            cut_off_active_data = False
 
 
         stock_data_last_days = st.session_state['stock_data']
@@ -293,10 +329,10 @@ with st.container():
         best_open_data_dates = best_open_data_dates + [st.session_state['stock_data'][0]['date']]
 
         exogenous_series = [SN.normalize_market_data(st.session_state['stock_data'][i], st.session_state['smoothing_window'])[1] for i in best_open_data_indexes]
-        endogenous_series = SN.normalize_market_data(st.session_state['stock_data'][0], 1)[1]
+        endogenous_series = SN.normalize_market_data(st.session_state['stock_data'][0], 1, cut_off_active_data)[1]
 
-        prediction_machine = stockPredictor(exogenous_series, endogenous_series)
-        prediction_machine.data_divider(prediction_vision)
+        prediction_machine = stockPredictor(exogenous_series, endogenous_series) 
+        prediction_machine.data_divider(prediction_vision)# Determine the minimum value between the cut-off prediction_vision point and the length of the most recent stock data
         if st.session_state['predictor_option'] == 'DTW Regresion':
             prediction = prediction_machine.DTW_regresion()
         elif st.session_state['predictor_option'] == 'Ridge regression':

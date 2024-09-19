@@ -26,10 +26,10 @@ class stockAnalyzer:
         if Type == 'PRE':
             full_index = pd.date_range(start=(f"{date_str} 06:01:00-04:00"), end=(f"{date_str} 09:29:00-04:00"), freq='1min')
         elif Type == 'OPEN':
-            full_index = pd.date_range(start=(f"{date_str} 09:30:00-04:00"), end=(f"{date_str} 12:41:00-04:00"), freq='1min')
+            full_index = pd.date_range(start=(f"{date_str} 09:30:00-04:00"), end=(f"{date_str} 16:00:00-04:00"), freq='1min')
         elif Type == 'ACTIVE':
             #full_index = pd.date_range(start=(f"{date_str} 09:30:00-04:00"), end=(f"{date_str} {adjustment}:00-04:00"), freq='1min')
-            full_index = pd.date_range(start=(f"{date_str} 09:30:00-04:00"), end=(f"{date_str} 10:00:00-04:00"), freq='1min')
+            full_index = pd.date_range(start=(f"{date_str} 09:30:00-04:00"), end=(f"{date_str} 16:00:00-04:00"), freq='1min')# For testing purposes
         # Reindex the DataFrame with the full index
         data = data.reindex(full_index)
         
@@ -144,9 +144,14 @@ class stockPredictor:
         self.c = np.asanyarray(predictors[2])
         self.x = np.asanyarray(to_be_predicted)
 
-    def data_divider(self,where_to_cut):
+    def data_divider(self, where_to_cut):
+        # Store the cut-off point
         self.where_to_cut = where_to_cut
-        N = where_to_cut
+        
+        # Determine the minimum value between the cut-off point and the length of x
+        N = min(where_to_cut, len(self.x))
+        
+        # Create a feature matrix X by combining the first N elements of a, b, and c
         self.X = np.column_stack((self.a[:N], self.b[:N], self.c[:N]))
 
     def align_series_with_dtw(self, source, target):
@@ -203,7 +208,7 @@ class stockPredictor:
         x_scaled = scaler_x.transform(self.x[:self.where_to_cut].reshape(-1, 1)).flatten()
         
         # Fit the Ridge regression model
-        ridge_model = Ridge(alpha=1).fit(X_scaled, x_scaled)  # Alpha is the regularization strength
+        ridge_model = Ridge(alpha=0.5).fit(X_scaled, x_scaled)  # Alpha is the regularization strength
         
         # Use the trained model to predict the future values of x
         X_all_scaled = scaler_X.transform(np.column_stack((self.a, self.b, self.c)))

@@ -81,7 +81,7 @@ class stockChecker:
         pre_market_data = full_day_data_1m_pre.between_time("06:01", "09:29")
 
         # Filter open market data (9:30 AM to 10:30 AM) at 1-minute intervals
-        open_market_data = full_day_data_1m.between_time("09:30", "12:41")
+        open_market_data = full_day_data_1m.between_time("09:30", "18:00")
 
         return {
             "pre_market_data": pre_market_data,

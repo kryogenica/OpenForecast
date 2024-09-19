@@ -84,7 +84,8 @@ class StockPlotter:
                 k += 1
 
         # Plot selected pre and open market data of latest day
-        normalized_pre_data, normalized_open_data = _self.SN.normalize_market_data(stock_data_last_days[0], window, special_case=special_case)
+        normalized_pre_data, _ = _self.SN.normalize_market_data(stock_data_last_days[0], window, special_case=special_case)
+        _, normalized_open_data = _self.SN.normalize_market_data(stock_data_last_days[0], 1, special_case=special_case)
         pre_lengths.append(len(normalized_pre_data))
         open_lengths.append(len(normalized_open_data))
         all_values.extend(normalized_pre_data)
@@ -164,6 +165,7 @@ class StockPlotter:
 
     @st.cache_data
     def plot_horizontal_heatmap(_self, values, circle_indexes, dates_to_display):
+        print(values)
         """
         Plots a list of values as a vertical heatmap.
         Args:
