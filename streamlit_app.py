@@ -18,6 +18,10 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'Scripts'))
 
 # Set the page configuration
 st.set_page_config(
+    page_title="Open Forecast Stock Predictor",
+    page_icon="logo_preview_rev_1.png",
+    layout="wide",
+    initial_sidebar_state="expanded",
     menu_items={
         'Report a bug': "mailto:kryogenica@gmail.com",
         'About': '''OpenForecast is a Streamlit-based web app that helps users predict future stock prices using machine learning.
@@ -85,8 +89,6 @@ def show_donation_section():
     st.code(eth_wallet_address)
     st.write("The data used here comes from the freely available Yahoo Finance provider. If you would like your private stock data provider custom adapted with this app, please feel free to reach out to: kryogenica@gmail.com")
 
-# Open the browser to send an email
-webbrowser.open("mailto:kryogenica@gmail.com")
 
 # Instantiate the StockPlotter and other classes
 SC = stockChecker()
