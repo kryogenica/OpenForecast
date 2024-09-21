@@ -1,5 +1,7 @@
 import streamlit as st
 from datetime import datetime
+from matplotlib.colors import ListedColormap
+import numpy as np
 import plotly.graph_objs as go
 import matplotlib.pyplot as plt
 
@@ -56,7 +58,9 @@ class StockPlotter:
         
 
         k = 0
-        colors = ['red', 'blue', 'violet']
+        colors = ['blue', 'red', 'violet']
+        symbol = ['▲', '⬟', '■']
+        names_of_lines = []
         # Plot selected pre and open market data with most similar pre-open market data to latest day
         for i, day_data in enumerate(stock_data_last_days):
             if i in best_open_data_indexes:
@@ -73,12 +77,13 @@ class StockPlotter:
                     name=f'Best Day {i} Pre-market',
                     hovertemplate=f'Compatible trading data<br>Date: {dates[k]}<br>Time: %{{x}} min<br>Close: %{{y:.2f}}%<extra></extra>'  # Format hover to 2 decimal places
                 ))
+                names_of_lines.append(f'Matching Open-market data {symbol[k]}')
                 fig.add_trace(go.Scatter(
                     x=list(range(0, len(normalized_open_data))),
                     y=normalized_open_data,
                     mode='lines',
                     line=dict(color=colors[k], width=2, dash='dot'),
-                    name=f'Best Day {i} Open-market',
+                    name=f'Matching Open-market data {symbol[k]}',
                     hovertemplate=f'Compatible trading data<br>Date: {dates[k]}<br>Time: %{{x}} min<br>Open: %{{y:.2f}}%<extra></extra>'  # Format hover to 2 decimal places
                 ))
                 k += 1
@@ -103,7 +108,7 @@ class StockPlotter:
             y=normalized_open_data,
             mode='lines',
             line=dict(color='gray', width=4),
-            name='Latest Day Open-market',
+            name='Latest Open-market data',
             hovertemplate=f'Most recent trading data<br>Date: {dates[-1]}<br>Time: %{{x}} min<br>Open: %{{y:.2f}}%<extra></extra>'  # Format hover to 2 decimal places
         ))
 
@@ -157,8 +162,26 @@ class StockPlotter:
             tickvals=tick_vals,
             ticktext=tick_text
             ),
-            showlegend=False
+            showlegend=True,
+            legend=dict(
+            itemsizing='constant',
+            traceorder='normal',
+            itemclick=False,
+            itemdoubleclick=False,
+            x=0.01,  # Position the legend inside the graph
+            y=0.99,  # Position the legend inside the graph
+            xanchor='left',
+            yanchor='top',
+            bgcolor='rgba(255, 255, 255, 0.1)'  # Semi-transparent background for better readability
+            )
         )
+        names_of_lines.append('Prediction')
+        names_of_lines.append('Latest Open-market data')
+        # Update traces to show legend only for 'Prediction', 'Latest Open-market data', and 'Best matching Open-market data'
+        for trace in fig.data:
+            if trace.name not in names_of_lines:
+                trace.showlegend = False
+
 
         # Display the figure in Streamlit
         st.plotly_chart(fig)
@@ -178,8 +201,18 @@ class StockPlotter:
         # Create the plot
         fig, ax = plt.subplots(figsize=(5,0.4), dpi=200)
 
-        # Create the heatmap
-        im = ax.imshow([values], cmap='viridis', aspect='auto')
+        # Create a colormap that maps NaN values to black
+
+        # Create a colormap that maps NaN values to black
+        cmap = plt.cm.viridis
+        cmap.set_bad(color='black')
+
+        # Convert the values to a numpy array and mask NaNs
+        values_array = np.array(values)
+        masked_values = np.ma.masked_invalid(values_array)
+
+        # Create the heatmap with the masked array
+        im = ax.imshow([masked_values], cmap=cmap, aspect='auto')
 
         # Add circles to specified indexes
         colors = ['blue','red','violet']

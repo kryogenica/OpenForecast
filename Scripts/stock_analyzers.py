@@ -10,6 +10,8 @@ from sklearn.linear_model import LinearRegression
 from sklearn.linear_model import ElasticNet
 from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
+from sklearn.gaussian_process.kernels import ConstantKernel as C
+from statsmodels.tsa.regime_switching.markov_regression import MarkovRegression
 
 class stockAnalyzer:
     def fill_missing_minutes(self, data, Type, adjustment='11:30'):
@@ -80,8 +82,8 @@ class stockAnalyzer:
 
             # Ensure both arrays have the same length
             min_length = min(first_day_time_diff, close_prices_time_diff, abs(matching_window))
-            first_day_close_norm = first_day_close_norm[-min_length:]
-            close_prices_norm = close_prices_norm[-min_length:]
+            first_day_close_norm = first_day_close_norm[-min_length+1:]
+            close_prices_norm = close_prices_norm[-min_length+1:]
 
             # Calculate and append measures between the first day and the current day
             value = np.corrcoef(first_day_close_norm, close_prices_norm)[0, 1]
@@ -118,7 +120,15 @@ class stockAnalyzer:
             - max_values: A list of tuples containing the indices and values of the 3 largest absolute values.
             - min_values: A list of tuples containing the indices and values of the 3 smallest absolute values.
         """
+        # Get the absolute values of the data
         abs_values = [abs(x) for x in data_list]
+
+         # Conditional return
+        if Type == 'Max':
+            abs_values = [0 if np.isnan(x) else x for x in abs_values]
+        elif Type == 'Min':
+            abs_values = [10000 if np.isnan(x) else x for x in abs_values]
+
         
         # Get indices of the 3 largest and 3 smallest absolute values
         max_indices = sorted(range(len(abs_values)), key=lambda i: abs_values[i], reverse=True)[:3]
@@ -207,7 +217,7 @@ class stockPredictor:
         x_scaled = scaler_x.transform(self.x[:self.where_to_cut].reshape(-1, 1)).flatten()
         
         # Fit the Ridge regression model
-        ridge_model = Ridge(alpha=0.5).fit(X_scaled, x_scaled)  # Alpha is the regularization strength
+        ridge_model = Ridge(alpha=0.1).fit(X_scaled, x_scaled)  # Alpha is the regularization strength
         
         # Use the trained model to predict the future values of x
         X_all_scaled = scaler_X.transform(np.column_stack((self.a, self.b, self.c)))
@@ -217,6 +227,84 @@ class stockPredictor:
         prediction = scaler_x.inverse_transform(prediction_scaled.reshape(-1, 1)).flatten()
         
         return prediction
+
+    def setar_model(self):
+        '''Fit a Self-Exciting Threshold Autoregressive (SETAR) model'''
+
+        # Prepare data
+        x = self.x
+        X = self.X
+
+        N = min(len(self.x), len(self.a), len(self.b), len(self.c))
+
+        where_to_cut = self.where_to_cut
+
+        # Apply StandardScaler to X and x (up to where_to_cut)
+        scaler_X = StandardScaler().fit(X[:where_to_cut])
+        X_scaled = scaler_X.transform(X[:where_to_cut])
+        scaler_x = StandardScaler().fit(x[:where_to_cut].reshape(-1, 1))
+        x_scaled = scaler_x.transform(x[:where_to_cut].reshape(-1, 1)).flatten()
+
+        # Compute lagged values of x_scaled
+        x_lagged = x_scaled[:-1]  # x at time t-1
+        x_current = x_scaled[1:]  # x at time t
+        X_current = X_scaled[1:, :]  # Corresponding X at time t
+
+        # Adjust where_to_cut since we lost one data point due to lagging
+        where_to_cut_adjusted = where_to_cut - 1
+
+        # Determine the threshold using the median of x_lagged up to where_to_cut_adjusted
+        threshold = np.median(x_lagged[:where_to_cut_adjusted])
+
+        # Split data into regimes based on the threshold
+        regime1_indices = np.where(x_lagged[:where_to_cut_adjusted] <= threshold)[0]
+        regime2_indices = np.where(x_lagged[:where_to_cut_adjusted] > threshold)[0]
+
+        # Prepare data for each regime
+        X_regime1 = X_current[regime1_indices]
+        y_regime1 = x_current[regime1_indices]
+
+        X_regime2 = X_current[regime2_indices]
+        y_regime2 = x_current[regime2_indices]
+
+        # Fit Linear Regression models for each regime
+        model_regime1 = LinearRegression().fit(X_regime1, y_regime1)
+        model_regime2 = LinearRegression().fit(X_regime2, y_regime2)
+
+        # Initialize an array to store scaled predictions
+        predictions_scaled = np.zeros(N)
+        predictions_scaled[0] = np.nan  # First value has no prediction due to lag
+
+        # Predict values iteratively
+        for t in range(1, N):
+            if t < where_to_cut:
+                # Use actual lagged x value
+                x_lagged_t = x_scaled[t - 1]
+                X_t = X_scaled[t, :].reshape(1, -1)
+            else:
+                # Use predicted lagged x value
+                x_lagged_t = predictions_scaled[t - 1]
+                X_t_original = np.array([self.a[t], self.b[t], self.c[t]]).reshape(1, -1)
+                X_t = scaler_X.transform(X_t_original)
+
+            if np.isnan(x_lagged_t):
+                # Cannot make prediction without lagged x
+                predictions_scaled[t] = np.nan
+                continue
+
+            # Select the appropriate model based on the threshold
+            if x_lagged_t <= threshold:
+                x_t_pred = model_regime1.predict(X_t)[0]
+            else:
+                x_t_pred = model_regime2.predict(X_t)[0]
+
+            predictions_scaled[t] = x_t_pred
+
+        # Inverse transform the scaled predictions to get them back to the original scale
+        predictions = scaler_x.inverse_transform(predictions_scaled.reshape(-1, 1)).flatten()
+
+        return predictions
+        
     
     def elastic_net(self):
         '''Fit an Elastic Net model with standardized data'''
@@ -227,7 +315,7 @@ class stockPredictor:
         x_scaled = scaler_x.transform(self.x[:self.where_to_cut].reshape(-1, 1)).flatten()
         
         # Fit the Elastic Net model
-        model = ElasticNet(alpha=0.35, l1_ratio=0.35)  # Customize alpha and l1_ratio as needed
+        model = ElasticNet(alpha=0.1, l1_ratio=0.2)  # Customize alpha and l1_ratio as needed
         model.fit(X_scaled, x_scaled)  # Fit the model
         
         # Use the trained model to predict the future values of x

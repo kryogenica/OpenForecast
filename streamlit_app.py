@@ -25,9 +25,11 @@ st.set_page_config(
     menu_items={
         'Report a bug': "mailto:kryogenica@gmail.com",
         'About': '''OpenForecast is a Streamlit-based web app that helps users predict future stock prices using machine learning.
-        The app uses pre-opening stock prices (from Yahoo Finance) of previous days' hours to select the previous 3 hours of open market prices of previous days to forecast future trends.
+        The app identifies the 3 closest matching pre-market prices from the past 30 days, comparing them to the current or most recent pre-market data. The open market prices corresponding to these 3 best matches are then used to forecast future trends.
+        The idea is that pre-market prices often reflect investor sentiment and major market-moving events that occur outside regular trading hours, providing early insights into potential market direction.
+        By using these to select previous open trading days, the model can better capture short-term volatility and patterns (mainly at opening time) that might influence future price movements.
         It's designed for real-time stock price analysis and visualization, making it a simple yet powerful tool for financial forecasting.
-        If you would like to see more features or would like something custom built, please feel free to reach out to me at: kryogenica@gmail.com'''
+        Prediction tools will be improved as time goes on. If you would like to see more features or would like something custom built, please feel free to reach out to me at: kryogenica@gmail.com.'''
     }
 )
 
@@ -87,7 +89,8 @@ def show_donation_section():
     # Display donation section
     st.write("Or you can consider donating some Ethereum to the following address:")
     st.code(eth_wallet_address)
-    st.write("The data used here comes from the freely available Yahoo Finance provider. If you would like your private stock data provider custom adapted with this app, please feel free to reach out to: kryogenica@gmail.com")
+    st.write('''The data in this app is sourced from the publicly available Yahoo Finance platform, which may have some delayed or missing data.
+             If you'd like to integrate your own private stock data provider, please don't hesitate to contact me at kryogenica@gmail.com.''')
 
 
 # Instantiate the StockPlotter and other classes
@@ -188,6 +191,7 @@ with st.sidebar:
                 margin-left: -60px;
                 opacity: 0;
                 transition: opacity 0.3s;
+                font-size: 12px; /* Make the font size smaller */
             }
 
             .tooltip:hover .tooltiptext {
@@ -201,21 +205,21 @@ with st.sidebar:
             </style>
             <div class="tooltip">
                 <button disabled style="cursor: not-allowed;">Open Trading</button>
-                <span class="tooltiptext">NYSE & Nasdaq are closed.</span>
+                <span class="tooltiptext">Come back later: NYSE & Nasdaq are currently closed.</span>
             </div>
             """,
             unsafe_allow_html=True
             )
 
     if st.session_state['active_feature'] == 'Most Recent':
-        st.markdown("<p style='font-size:13px;'>You now have enabled viewing of both pre-market the opened market on the last trading day and the month before it.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size:13px;'>You have now enabled the viewing of both pre-market and open market data for the most recent ~30 trading days.</p>", unsafe_allow_html=True)
         st.session_state['Trading_day'] = latest_day
         print(st.session_state['Trading_day'])
         
     elif st.session_state['active_feature'] == 'Currently Trading':
         # Custom CSS for neon glow effect
         stock_plotter.display_neon_text(text="Market is Open", font_size=20, color="blue")
-        st.markdown("<p style='font-size:13px;'>You now have enabled viewing of the current trading period on todays trading day and a month before it.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size:13px;'>You have now enabled viewing of the current trading period for today's trading day and for the most recent ~30 trading days.</p>", unsafe_allow_html=True)
         st.session_state['Trading_day'] = datetime.now().strftime('%Y-%m-%d')
         print(st.session_state['Trading_day'])
         
@@ -289,13 +293,13 @@ with st.sidebar:
     # Create a radio button selection in the sidebar
     st.session_state['predictor_option'] = st.sidebar.radio(
         "Choose the type of prediction mechanism:",
-        ('Ridge regression', 'DTW Regresion', 'Elastic Net')
+        ('Ridge regression', 'DTW linear regresion', 'Elastic Net', 'SETAR')
     )
 
     # Add a numeric scroller (slider) for controlling a window used for prediction
     prediction_vision = st.sidebar.slider(
         "Window used for prediction [min]:",
-        min_value=1, 
+        min_value=5, 
         max_value=180, 
         value=5,  # Default value
         step=1
@@ -319,9 +323,28 @@ with st.sidebar:
     current_time_nyc = datetime.now(nyc_tz).strftime("%H:%M:%S")
     time_placeholder.write(f"Last refreshed at {current_time_nyc} NYC time")
 
+
+    if 'show_about' not in st.session_state:
+        st.session_state['show_about'] = False
+
+    if st.sidebar.button('About'):
+        st.session_state['show_about'] = not st.session_state['show_about']
+
+    if st.session_state['show_about']:
+        st.sidebar.markdown('''
+            <div style="background-color: #f9f9f9; padding: 10px; border-radius: 5px;">
+            <h3 style="color: orange;">About</h3>
+            <p style="color: orange;">OpenForecast is a Streamlit-based web app that helps users predict future stock prices using machine learning.</p>
+            <p style="color: orange;">The app identifies the 3 closest matching pre-market prices from the past 30 days, comparing them to the current or most recent pre-market data. The open market prices corresponding to these 3 best matches are then used to forecast future trends.</p>
+            <p style="color: orange;">The idea is that pre-market prices often reflect investor sentiment and major market-moving events that occur outside regular trading hours, providing early insights into potential market direction.</p>
+            <p style="color: orange;">By using these to select previous open trading days, the model can better capture short-term volatility and patterns (mainly at opening time) that might influence future price movements.</p>
+            <p style="color: orange;">It's designed for real-time stock price analysis and visualization, making it a simple yet powerful tool for financial forecasting.</p>
+            <p style="color: orange;">Prediction tools will be improved as time goes on. If you would like to see more features or would like something custom built, please feel free to reach out to me at: <a href="mailto:kryogenica@gmail.com" style="color: orange;">kryogenica@gmail.com</a>.</p>
+            </div>
+        ''', unsafe_allow_html=True)
+    
     if st.sidebar.button('Support the project'):
         show_donation_section()
-
 
 
 # ========================
@@ -394,8 +417,9 @@ with st.container():
 
         stock_data_last_days = st.session_state['stock_data']
         st.session_state['lists_of_measures'] = SA.get_pre_market_measures(st.session_state['stock_data'], st.session_state['smoothing_window'], st.session_state['matching_window'])
-        best_pre_market_match = st.session_state['lists_of_measures'][measures_to_num_n_type[metric_option][0]]
-        circle_indexes = [i for i, _ in SA.max_min_of_abs(best_pre_market_match, measures_to_num_n_type[metric_option][1])]  # Get top 3 best results
+        best_pre_market_match = st.session_state['lists_of_measures'][measures_to_num_n_type[metric_option][0]]# Selects the metric to be used using the dictionary measures_to_num_n_type
+        print(best_pre_market_match)
+        circle_indexes = [i for i, _ in SA.max_min_of_abs(best_pre_market_match, measures_to_num_n_type[metric_option][1])]  # Get top 3 best results, measures_to_num_n_type[metric_option][1] selects if to search for the max or min value
         best_open_data_indexes = [i + 1 for i in circle_indexes]
 
         # Get the dates from the stock data using the best open data indexes
@@ -407,12 +431,14 @@ with st.container():
 
         prediction_machine = stockPredictor(exogenous_series, endogenous_series) 
         prediction_machine.data_divider(prediction_vision)# Determine the minimum value between the cut-off prediction_vision point and the length of the most recent stock data
-        if st.session_state['predictor_option'] == 'DTW Regresion':
+        if st.session_state['predictor_option'] == 'DTW linear regresion':
             prediction = prediction_machine.DTW_regresion()
         elif st.session_state['predictor_option'] == 'Ridge regression':
             prediction = prediction_machine.ridge_model()
         elif st.session_state['predictor_option'] == 'Elastic Net':
             prediction = prediction_machine.elastic_net()
+        elif st.session_state['predictor_option'] == 'SETAR':
+            prediction = prediction_machine.setar_model()
 
         if st.session_state['active_feature'] == 'Currently Trading':
             special_case = True
