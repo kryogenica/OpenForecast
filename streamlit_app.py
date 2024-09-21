@@ -293,7 +293,7 @@ with st.sidebar:
     # Create a radio button selection in the sidebar
     st.session_state['predictor_option'] = st.sidebar.radio(
         "Choose the type of prediction mechanism:",
-        ('Ridge regression', 'DTW linear regresion', 'Elastic Net', 'SETAR')
+        ('Ridge regression', 'DTW linear regresion', 'Elastic Net', 'SETAR`beta`')
     )
 
     # Add a numeric scroller (slider) for controlling a window used for prediction
@@ -437,7 +437,7 @@ with st.container():
             prediction = prediction_machine.ridge_model()
         elif st.session_state['predictor_option'] == 'Elastic Net':
             prediction = prediction_machine.elastic_net()
-        elif st.session_state['predictor_option'] == 'SETAR':
+        elif st.session_state['predictor_option'] == 'SETAR`beta`':
             prediction = prediction_machine.setar_model()
 
         if st.session_state['active_feature'] == 'Currently Trading':
