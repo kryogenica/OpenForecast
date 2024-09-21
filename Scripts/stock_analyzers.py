@@ -11,7 +11,6 @@ from sklearn.linear_model import ElasticNet
 from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
 from sklearn.gaussian_process.kernels import ConstantKernel as C
-from statsmodels.tsa.regime_switching.markov_regression import MarkovRegression
 
 class stockAnalyzer:
     def fill_missing_minutes(self, data, Type, adjustment='11:30'):
