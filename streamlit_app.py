@@ -214,14 +214,12 @@ with st.sidebar:
     if st.session_state['active_feature'] == 'Most Recent':
         st.markdown("<p style='font-size:13px;'>You have now enabled the viewing of both pre-market and open market data for the most recent ~30 trading days.</p>", unsafe_allow_html=True)
         st.session_state['Trading_day'] = latest_day
-        print(st.session_state['Trading_day'])
         
     elif st.session_state['active_feature'] == 'Currently Trading':
         # Custom CSS for neon glow effect
         stock_plotter.display_neon_text(text="Market is Open", font_size=20, color="blue")
         st.markdown("<p style='font-size:13px;'>You have now enabled viewing of the current trading period for today's trading day and for the most recent ~30 trading days.</p>", unsafe_allow_html=True)
         st.session_state['Trading_day'] = datetime.now().strftime('%Y-%m-%d')
-        print(st.session_state['Trading_day'])
         
 
     # User input
@@ -253,7 +251,6 @@ with st.sidebar:
                     # Append the latest day stock data to the active stock data
                     st.session_state['active_stock_data'].extend(st.session_state['latest_day_stock_data'])
                                 
-                    print("Data has been collected.")
                     st.session_state['Collect_data'] = True
                     # Call the function to stop refresh.py
                     control_refresh_script('run')
@@ -418,7 +415,6 @@ with st.container():
         stock_data_last_days = st.session_state['stock_data']
         st.session_state['lists_of_measures'] = SA.get_pre_market_measures(st.session_state['stock_data'], st.session_state['smoothing_window'], st.session_state['matching_window'])
         best_pre_market_match = st.session_state['lists_of_measures'][measures_to_num_n_type[metric_option][0]]# Selects the metric to be used using the dictionary measures_to_num_n_type
-        print(best_pre_market_match)
         circle_indexes = [i for i, _ in SA.max_min_of_abs(best_pre_market_match, measures_to_num_n_type[metric_option][1])]  # Get top 3 best results, measures_to_num_n_type[metric_option][1] selects if to search for the max or min value
         best_open_data_indexes = [i + 1 for i in circle_indexes]
 
