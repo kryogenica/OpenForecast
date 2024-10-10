@@ -77,13 +77,13 @@ class StockPlotter:
                     name=f'Best Day {i} Pre-market',
                     hovertemplate=f'Compatible trading data<br>Date: {dates[k]}<br>Time: %{{x}} min<br>Close: %{{y:.2f}}%<extra></extra>'  # Format hover to 2 decimal places
                 ))
-                names_of_lines.append(f'Matching Open-market data {symbol[k]}')
+                names_of_lines.append(f'Matching Close-market data {symbol[k]}')
                 fig.add_trace(go.Scatter(
                     x=list(range(0, len(normalized_open_data))),
                     y=normalized_open_data,
                     mode='lines',
                     line=dict(color=colors[k], width=2, dash='dot'),
-                    name=f'Matching Open-market data {symbol[k]}',
+                    name=f'Matching Close-market data {symbol[k]}',
                     hovertemplate=f'Compatible trading data<br>Date: {dates[k]}<br>Time: %{{x}} min<br>Open: %{{y:.2f}}%<extra></extra>'  # Format hover to 2 decimal places
                 ))
                 k += 1
